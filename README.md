@@ -1,10 +1,12 @@
 # Typographic Flow for Obsidian
 
-[![GitHub](https://img.shields.io/badge/GitHub-%2330363E.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/YOUR_USERNAME/obsidian-typographic-flow)
+[![GitHub](https://img.shields.io/badge/GitHub-%2330363E.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/dongningguo0331-prog/obsidian-typographic-flow)
 [![Obsidian](https://img.shields.io/badge/Obsidian-%23483699.svg?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Release](https://img.shields.io/github/v/release/YOUR_USERNAME/obsidian-typographic-flow?style=for-the-badge)](https://github.com/YOUR_USERNAME/obsidian-typographic-flow/releases)
+[![Release](https://img.shields.io/github/v/release/dongningguo0331-prog/obsidian-typographic-flow?style=for-the-badge)](https://github.com/dongningguo0331-prog/obsidian-typographic-flow/releases)
 
 A unified typographic editing experience for [Obsidian](https://obsidian.md). Combines typewriter scrolling, focus modes, reading colors, baseline grid, and CJK typography into one plugin.
+
+English | [中文](README.zh-CN.md)
 
 ## Features
 
@@ -61,7 +63,7 @@ A zen-inspired color palette for comfortable reading.
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/YOUR_USERNAME/obsidian-typographic-flow/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/dongningguo0331-prog/obsidian-typographic-flow/releases)
 2. Extract the plugin folder to your vault's plugins directory:
    ```
    <your-vault>/.obsidian/plugins/obsidian-typographic-flow/
@@ -135,8 +137,8 @@ This plugin is licensed under the [MIT License](LICENSE).
 If you find this plugin useful, consider:
 
 - ⭐ Starring the repository
-- 🐛 Reporting bugs via [GitHub Issues](https://github.com/YOUR_USERNAME/obsidian-typographic-flow/issues)
-- 💡 Suggesting features via [GitHub Discussions](https://github.com/YOUR_USERNAME/obsidian-typographic-flow/discussions)
+- 🐛 Reporting bugs via [GitHub Issues](https://github.com/dongningguo0331-prog/obsidian-typographic-flow/issues)
+- 💡 Suggesting features via [GitHub Discussions](https://github.com/dongningguo0331-prog/obsidian-typographic-flow/discussions)
 
 ---
 
