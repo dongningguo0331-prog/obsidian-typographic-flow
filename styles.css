@@ -1,0 +1,848 @@
+/* ===== Typographic Flow — Core Plugin Styles ===== */
+
+/* ==========================================================
+   Phase C: JS ↔ CSS Typography Constants
+   These variables are the data bus between the typewriter
+   scroll engine (JS) and the grid/colors modules (CSS).
+   Default values apply when no module is active.
+   When grid is enabled, body.plugin-tf-grid overrides them.
+   ========================================================== */
+:root {
+  --tf-lh-normal: 24px;
+  --tf-lh-heading: 32px;
+  --tf-grid-unit: 16px;
+}
+
+/* ==========================================================
+   Global Typography Baseline
+   Browser rendering-layer enhancements. Zero DOM modification,
+   zero-byte overhead — native CSS features available everywhere.
+   Previously locked behind body.plugin-tf-grid.
+   ========================================================== */
+:root {
+  text-autospace: normal;       /* CJK-Latin auto-spacing. Baseline 2025 */
+  text-wrap: pretty;            /* Prevent typographic orphans. Baseline 2024 */
+  font-feature-settings: "kern" 1, "liga" 1;  /* OpenType kerning + ligatures */
+}
+body .markdown-rendered :is(h1, h2, h3) {
+  text-wrap: balance;           /* Balanced heading lines */
+}
+
+/* ===== Zen Mode: Line-level Dim ===== */
+/* Active line stays bright; all other lines dim to --zen-opacity */
+body.plugin-tf-zen .cm-editor.cm-focused .cm-line:not(.cm-active) {
+  opacity: var(--zen-opacity, 0.25);
+}
+
+/* ===== Zen Mode: Embed Block Preservation ===== */
+body.plugin-tf-zen .cm-editor.cm-focused .cm-embed-block:not(:has(.cm-active)) {
+  opacity: var(--zen-opacity, 0.25);
+}
+
+/* ===== Zen Mode: Code & Quote Blocks ===== */
+body.plugin-tf-zen .cm-editor.cm-focused .HyperMD-codeblock:not(.cm-active) {
+  opacity: var(--zen-opacity, 0.25);
+}
+body.plugin-tf-zen .cm-editor.cm-focused .HyperMD-quote:not(.cm-active) {
+  opacity: var(--zen-opacity, 0.25);
+}
+
+/* ===== Zen Toggle Entry Animation ===== */
+@keyframes tf-zen-active-in {
+  from { opacity: var(--zen-opacity, 0.25); }
+}
+
+body.tf-zen-entering .cm-editor.cm-focused .cm-line.cm-active {
+  animation: tf-zen-active-in 0.3s ease;
+}
+
+/* ===== Viewport Transition Protection ===== */
+.tf-no-transition .cm-line,
+.tf-no-transition .cm-embed-block {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* ===== Focus Mode: Semantic Dim ===== */
+:root {
+  --focus-opacity: 0.5;
+}
+
+body.plugin-tf-focus .cm-line.tf-focus-dim {
+  opacity: var(--focus-opacity, 0.5);
+}
+body.plugin-tf-focus .cm-embed-block.tf-focus-dim {
+  opacity: var(--focus-opacity, 0.5);
+}
+body.plugin-tf-focus .HyperMD-codeblock.tf-focus-dim,
+body.plugin-tf-focus .HyperMD-quote.tf-focus-dim {
+  opacity: var(--focus-opacity, 0.5);
+}
+
+/* ===== Focus Mode Line: Visual-Line Overlay Dimming ===== */
+.markdown-source-view .cm-scroller {
+  position: relative;
+}
+
+.tf-focus-line-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: var(--background-primary);
+  opacity: 0.4;
+}
+
+/* ===== Zen + Focus Coexistence: Three-layer visual gradient ===== */
+body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .cm-line.tf-focus-dim {
+  opacity: var(--focus-opacity, 0.5);
+}
+body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .cm-embed-block.tf-focus-dim {
+  opacity: var(--focus-opacity, 0.5);
+}
+body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .HyperMD-codeblock.tf-focus-dim,
+body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .HyperMD-quote.tf-focus-dim {
+  opacity: var(--focus-opacity, 0.5);
+}
+body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .cm-line:not(.cm-active):not(.tf-focus-dim) {
+  opacity: calc((1 + var(--zen-opacity, 0.25)) / 2);
+}
+
+/* ==========================================================
+   Phase B: Reading Colors Module (清雅阅读配色)
+   Source: styles/colors.css
+   Controlled by: body.plugin-tf-colors toggle
+   ========================================================== */
+
+/* ── color-scheme ── */
+body.plugin-tf-colors.theme-light { color-scheme: light; }
+body.plugin-tf-colors.theme-dark  { color-scheme: dark; }
+
+/* ── 动态主题生成系统 ── */
+body.plugin-tf-colors.theme-light,
+body.plugin-tf-colors.theme-dark {
+  --theme-hue: 160;
+  --primary: oklch(55% 0.07 var(--theme-hue));
+  --primary-50:  oklch(from var(--primary) 95% 0.05 h);
+  --primary-100: oklch(from var(--primary) 90% 0.08 h);
+  --primary-200: oklch(from var(--primary) 80% 0.12 h);
+  --primary-300: oklch(from var(--primary) 70% 0.14 h);
+  --primary-400: oklch(from var(--primary) 60% 0.12 h);
+  --primary-500: oklch(from var(--primary) 50% 0.10 h);
+  --primary-600: oklch(from var(--primary) 45% 0.12 h);
+  --primary-700: oklch(from var(--primary) 40% 0.14 h);
+  --primary-800: oklch(from var(--primary) 30% 0.12 h);
+  --primary-900: oklch(from var(--primary) 20% 0.08 h);
+}
+
+body.plugin-tf-colors.theme-light,
+body.plugin-tf-colors.theme-dark {
+  --user-wght: 400; --user-slnt: 0; --user-ital: 0;
+
+  --text-normal: light-dark(oklch(calc(30% + var(--text-contrast, 0) * 0.5%) 0.01 210), oklch(calc(85% + var(--text-contrast, 0) * 0.4%) 0.008 210));
+  --text-muted:  light-dark(oklch(48% 0.01 210),  oklch(62% 0.01 210));
+  --text-faint:  light-dark(oklch(60% 0.01 210),  oklch(52% 0.01 210));
+
+  --text-accent:      var(--text-accent-base);
+  --text-accent-hover: oklch(from var(--text-accent-base) calc(l + var(--accent-hover-lshift)) c h);
+  --text-on-accent:    light-dark(oklch(97% 0.005 90), oklch(22% 0.01 210));
+  --text-selection:    light-dark(oklch(85% 0.01 210 / 0.35), oklch(50% 0.015 210 / 0.35));
+
+  --text-error:        light-dark(oklch(52% 0.12 30),  oklch(65% 0.12 20));
+  --text-success:      light-dark(oklch(52% 0.10 145), oklch(65% 0.10 145));
+  --text-warning:      light-dark(oklch(58% 0.12 85),  oklch(72% 0.12 85));
+  --text-highlight-bg: light-dark(oklch(85% 0.10 85 / 0.22), oklch(75% 0.10 85 / 0.22));
+  --link-color:        var(--text-accent);
+  --link-color-hover:  var(--text-accent-hover);
+
+  --interactive-accent:       var(--text-accent);
+  --interactive-accent-hover: var(--text-accent-hover);
+  --tag-color: var(--text-accent-hover);
+  --blockquote-border-color: var(--text-accent);
+
+  --callout-note-border:    var(--text-accent);
+  --callout-key-border:     light-dark(oklch(60% 0.08 170), oklch(50% 0.08 170));
+  --callout-key-text:       light-dark(oklch(42% 0.08 170), oklch(72% 0.08 170));
+  --callout-success-border: light-dark(oklch(52% 0.08 145), oklch(45% 0.08 145));
+  --callout-success-text:   light-dark(oklch(40% 0.10 145), oklch(65% 0.10 145));
+  --callout-error-border:   light-dark(oklch(52% 0.12 30),  oklch(45% 0.12 20));
+  --callout-error-text:     light-dark(oklch(40% 0.10 20),  oklch(65% 0.10 20));
+
+  --checkbox-color: var(--text-accent);
+  --table-header-weight: 600; --table-header-border-width: 1px; --table-row-last-border-width: 1px;
+  --table-border-width: 1px; --table-text-color: var(--text-normal); --table-line-height: 1.55;
+  --table-text-size: 0.95em; --table-cell-vertical-align: top;
+  --table-selection: oklch(from var(--text-accent-base) 0.95 c h / 0.12);
+
+  --list-marker-color: var(--text-accent);
+  --icon-color-hover: var(--text-accent); --icon-color-active: var(--text-accent);
+  --icon-color-focused: var(--text-accent);
+  --indentation-guide-color-active: oklch(from var(--text-accent-base) 0.9 c h / 0.30);
+  --indentation-guide-width: 1px; --indentation-guide-width-active: 1px;
+  --indentation-guide-editing-indent: 2em; --indentation-guide-reading-indent: 2em; --indentation-guide-source-indent: 2em;
+}
+
+/* ── 浅色模式 ── */
+body.plugin-tf-colors.theme-light {
+  --text-accent-base: oklch(55% calc(max(0.04, 0.07 + var(--accent-sat-adjust, 0) * 0.001)) calc(160 + var(--accent-hue, 0)));
+  --accent-hover-lshift: -0.08;
+
+  --background-primary: oklch(97% calc(0.005 + abs(var(--bg-warmth, 0)) * 0.002) calc(90 - sign(var(--bg-warmth, 0)) * 30));
+  --background-secondary: color-mix(in oklab, var(--background-primary) 95%, oklch(30% 0.01 210));
+  --background-secondary-alt: color-mix(in oklab, var(--background-primary) 90%, oklch(30% 0.01 210));
+  --background-modifier-border: color-mix(in oklab, var(--background-primary) 85%, oklch(30% 0.01 210));
+  --background-modifier-form-field: oklch(94% 0.005 90);
+  --background-modifier-form-field-highlighted: oklch(96% 0.004 90);
+  --background-modifier-box-shadow: rgba(54, 58, 63, 0.08);
+  --background-modifier-success: oklch(92% 0.03 145);
+  --background-modifier-error: oklch(90% 0.03 30);
+  --background-modifier-error-hover: oklch(86% 0.05 30);
+  --background-modifier-cover: oklch(from var(--background-primary) 0.95 c h / 0.85);
+  --interactive-normal: oklch(94% 0.005 90);
+  --interactive-hover: oklch(91% 0.005 90);
+  --code-background: oklch(93% 0.01 145);
+  --code-normal: oklch(30% 0.01 210);
+
+  --h1-color: oklch(25% 0.01 210); --h2-color: oklch(25% 0.01 210);
+  --h3-color: oklch(30% 0.01 210); --h4-color: oklch(30% 0.01 210);
+  --h5-color: oklch(52% 0.01 210); --h6-color: oklch(52% 0.01 210);
+  --bold-color: oklch(25% 0.01 210); --italic-color: oklch(38% 0.01 210);
+
+  --tag-background: oklch(91% 0.005 90);
+  --blockquote-background-color: oklch(94% 0.005 90);
+  --callout-note-text: oklch(from var(--text-accent-base) calc(l - 0.05) c h);
+  --callout-warning-border: oklch(60% 0.12 85); --callout-warning-text: oklch(45% 0.10 80);
+  --callout-data-border: oklch(62% 0.05 240); --callout-data-text: oklch(42% 0.07 240);
+  --callout-source-border: oklch(60% 0.05 320); --callout-source-text: oklch(42% 0.05 320);
+
+  --checkbox-border-color: oklch(65% 0.01 210);
+  --divider-color: oklch(88% 0.004 90);
+  --table-background: transparent; --table-header-background: oklch(92% 0.005 90);
+  --table-header-background-hover: oklch(90% 0.005 90); --table-header-color: oklch(25% 0.01 210);
+  --table-header-border-color: oklch(86% 0.005 90); --table-row-alt-background: oklch(95% 0.004 90);
+  --table-row-alt-background-hover: oklch(93% 0.005 90); --table-row-background-hover: oklch(94% 0.005 90);
+  --table-border-color: oklch(86% 0.005 90);
+
+  --scrollbar-bg: oklch(94% 0.005 90); --scrollbar-thumb-bg: oklch(80% 0.005 90);
+  --scrollbar-active-thumb-bg: oklch(70% 0.008 90);
+  --embed-background: oklch(94% 0.005 90);
+  --icon-color: oklch(48% 0.01 210); --collapse-icon-color: oklch(48% 0.01 210);
+  --collapse-icon-color-collapsed: oklch(48% 0.01 210);
+  --indentation-guide-color: oklch(30% 0.01 260 / 0.12);
+  --caret-color: oklch(30% 0.01 210);
+
+  --nav-item-background-active: oklch(91% 0.005 90); --nav-item-background-hover: oklch(94% 0.005 90);
+  --titlebar-background: oklch(94% 0.005 90); --titlebar-background-focused: oklch(97% 0.005 90);
+  --status-bar-background: oklch(94% 0.005 90); --ribbon-background: oklch(94% 0.005 90);
+  --tab-container-background: oklch(94% 0.005 90); --tab-background-active: oklch(97% 0.005 90);
+  --prompt-border-color: oklch(88% 0.004 90); --modal-border-color: oklch(88% 0.004 90);
+  --titlebar-text-color: oklch(48% 0.01 210); --titlebar-text-color-focused: oklch(30% 0.01 210);
+}
+
+/* ── 深色模式 ── */
+body.plugin-tf-colors.theme-dark {
+  --text-accent-base: oklch(65% calc(max(0.04, 0.07 + var(--accent-sat-adjust, 0) * 0.001)) calc(160 + var(--accent-hue, 0)));
+  --accent-hover-lshift: 0.08;
+
+  --background-primary: oklch(22% calc(0.01 + abs(var(--bg-warmth, 0)) * 0.002) calc(260 + sign(var(--bg-warmth, 0)) * 40));
+  --background-secondary: color-mix(in oklab, var(--background-primary) 96%, oklch(85% 0.005 210));
+  --background-secondary-alt: color-mix(in oklab, var(--background-primary) 93%, oklch(85% 0.005 210));
+  --background-modifier-border: color-mix(in oklab, var(--background-primary) 87%, oklch(85% 0.005 210));
+  --background-modifier-form-field: oklch(17% 0.008 260);
+  --background-modifier-form-field-highlighted: oklch(24% 0.008 260);
+  --background-modifier-box-shadow: rgba(0, 0, 0, 0.4);
+  --background-modifier-success: oklch(26% 0.04 145);
+  --background-modifier-error: oklch(24% 0.06 15);
+  --background-modifier-error-hover: oklch(28% 0.07 15);
+  --background-modifier-cover: oklch(from var(--background-primary) 0.3 c h / 0.85);
+  --interactive-normal: oklch(24% 0.008 260);
+  --interactive-hover: oklch(30% 0.008 260);
+  --code-background: oklch(21% 0.015 160);
+  --code-normal: oklch(85% 0.008 210);
+
+  --h1-color: oklch(93% 0.005 210); --h2-color: oklch(93% 0.005 210);
+  --h3-color: oklch(85% 0.008 210); --h4-color: oklch(85% 0.008 210);
+  --h5-color: oklch(62% 0.01 210); --h6-color: oklch(62% 0.01 210);
+  --bold-color: oklch(93% 0.005 210); --italic-color: oklch(72% 0.01 210);
+
+  --tag-background: oklch(30% 0.008 260);
+  --blockquote-background-color: oklch(22% 0.008 260);
+  --callout-note-text: oklch(from var(--text-accent-base) calc(l + 0.05) c h);
+  --callout-warning-border: oklch(60% 0.12 80); --callout-warning-text: oklch(72% 0.10 85);
+  --callout-data-border: oklch(42% 0.06 240); --callout-data-text: oklch(72% 0.06 235);
+  --callout-source-border: oklch(40% 0.04 320); --callout-source-text: oklch(65% 0.04 320);
+
+  --checkbox-border-color: oklch(50% 0.01 210);
+  --divider-color: oklch(30% 0.008 260);
+  --table-background: transparent; --table-header-background: oklch(26% 0.008 260);
+  --table-header-background-hover: oklch(28% 0.008 260); --table-header-color: oklch(93% 0.005 210);
+  --table-header-border-color: oklch(32% 0.008 260); --table-row-alt-background: oklch(22% 0.006 260);
+  --table-row-alt-background-hover: oklch(27% 0.008 260); --table-row-background-hover: oklch(26% 0.008 260);
+  --table-border-color: oklch(32% 0.008 260);
+
+  --scrollbar-bg: oklch(17% 0.008 260); --scrollbar-thumb-bg: oklch(30% 0.008 260);
+  --scrollbar-active-thumb-bg: oklch(40% 0.008 260);
+  --embed-background: oklch(21% 0.01 160);
+  --icon-color: oklch(62% 0.01 210); --collapse-icon-color: oklch(62% 0.01 210);
+  --collapse-icon-color-collapsed: oklch(62% 0.01 210);
+  --indentation-guide-color: oklch(85% 0.008 260 / 0.10);
+  --caret-color: oklch(85% 0.008 210);
+
+  --nav-item-background-active: oklch(24% 0.008 260); --nav-item-background-hover: oklch(22% 0.008 260);
+  --titlebar-background: oklch(17% 0.008 260); --titlebar-background-focused: oklch(22% 0.01 260);
+  --status-bar-background: oklch(17% 0.008 260); --ribbon-background: oklch(17% 0.008 260);
+  --tab-container-background: oklch(17% 0.008 260); --tab-background-active: oklch(22% 0.01 260);
+  --prompt-border-color: oklch(30% 0.008 260); --modal-border-color: oklch(30% 0.008 260);
+  --titlebar-text-color: oklch(52% 0.01 210); --titlebar-text-color-focused: oklch(62% 0.01 210);
+}
+
+/* ── 文本选中 ── */
+body.plugin-tf-colors ::selection,
+body.plugin-tf-colors .markdown-reading-view ::selection,
+body.plugin-tf-colors .cm-s-obsidian .cm-content ::selection,
+body.plugin-tf-colors .cm-s-obsidian .cm-line::selection,
+body.plugin-tf-colors .cm-selectionBackground {
+  background-color: var(--text-selection);
+}
+body.plugin-tf-colors ::selection { color: inherit; }
+body.plugin-tf-colors .cm-selectionBackground { background-color: var(--text-selection) !important; }
+
+/* ── 窗口控制按钮 ── */
+body.plugin-tf-colors .titlebar-button-container,
+body.plugin-tf-colors .titlebar-button-container.mod-right,
+body.plugin-tf-colors .titlebar-button-container.mod-left {
+  background-color: transparent !important;
+}
+body.plugin-tf-colors .titlebar-button-container .titlebar-button {
+  color: var(--titlebar-text-color); background-color: transparent !important;
+}
+body.plugin-tf-colors .is-focused .titlebar-button-container .titlebar-button {
+  color: var(--titlebar-text-color-focused); background-color: transparent !important;
+}
+body.plugin-tf-colors .titlebar-button-container .titlebar-button:hover {
+  color: var(--titlebar-text-color-focused) !important;
+  background-color: var(--background-modifier-border) !important;
+}
+body.plugin-tf-colors .titlebar-button-container .mod-close:hover {
+  color: var(--text-error) !important;
+  background-color: oklch(from var(--text-error) 0.95 c h / 0.12) !important;
+}
+
+/* ── 脚注 ── */
+body.plugin-tf-colors .markdown-rendered sup:has(a[href^="#fnref"]) { cursor: help; transition: color 0.2s ease; }
+body.plugin-tf-colors .markdown-rendered sup:has(a[href^="#fnref"]):hover { color: var(--text-accent); }
+body.plugin-tf-colors .markdown-rendered .footnotes li:has(a[href^="#fnref"]) {
+  transition: background-color 0.2s ease; border-radius: 4px;
+}
+body.plugin-tf-colors .markdown-rendered .footnotes li:has(a[href^="#fnref"]):hover {
+  background-color: color-mix(in oklab, var(--background-primary) 92%, var(--primary));
+}
+
+/* ── cssclasses ── */
+body.plugin-tf-colors .wide-reading .markdown-rendered { max-width: 900px; padding-inline: 2rem; }
+body.plugin-tf-colors .compact .markdown-rendered { --grid-unit: 12px; }
+body.plugin-tf-colors .eye-care .markdown-rendered { --bg-warmth: 8; --text-contrast: -10; }
+body.plugin-tf-colors .no-grid .markdown-rendered { --grid-line-opacity-light: 0; --grid-line-opacity-dark: 0; }
+body.plugin-tf-colors .study-note .markdown-rendered { --grid-unit: 15px; border-left: 3px solid var(--text-accent); padding-left: 1rem; }
+body.plugin-tf-colors .english-reading .markdown-rendered { --grid-unit: 14px; --grid-offset-y: 29px; font-variation-settings: normal; }
+body.plugin-tf-colors .english-reading .markdown-rendered :is(p, li, blockquote, h1, h2, h3, h4, h5, h6) {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  text-box-edge: cap alphabetic; margin-block-end: var(--grid-unit) !important; font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* ── GRAD 光晕补偿 ── */
+@supports (font-variation-settings: "GRAD" 1) {
+  body.plugin-tf-colors.theme-light .markdown-rendered,
+  body.plugin-tf-colors.theme-dark .markdown-rendered {
+    --font-grad: light-dark(0, -50);
+    font-variation-settings: "wght" var(--user-wght), "GRAD" var(--font-grad), "slnt" var(--user-slnt), "ital" var(--user-ital);
+  }
+  body.plugin-tf-colors .markdown-rendered strong { --user-wght: 600; font-weight: normal; }
+  body.plugin-tf-colors .markdown-rendered em { --user-ital: 1; --user-slnt: -10; font-style: normal; }
+}
+
+/* ==========================================================
+   Phase B: Baseline Grid Module (严密基线网格)
+   Source: styles/grid.css
+   Controlled by: body.plugin-tf-grid toggle
+   ========================================================== */
+
+/* ── 排版常数 ── */
+body.plugin-tf-grid {
+  --grid-unit: 16px;
+  --lh-normal: calc(var(--grid-unit) * 3);
+  --lh-heading: calc(var(--grid-unit) * 4);
+  /* Phase C bridge: push grid values to the JS-readable constants.
+     These are the data bus for Typewriter Scroll's cursor offset math.
+     Integer-pixel values (48, 64, 16) eliminate sub-pixel rendering jitter
+     in scroll operations — the core reason grid layout improves scrolling
+     smoothness even without visible grid lines. */
+  --tf-lh-normal: var(--lh-normal);
+  --tf-lh-heading: var(--lh-heading);
+  --tf-grid-unit: var(--grid-unit);
+  --grid-line-w: 1px;
+  --grid-border-w: 1px;
+  --grid-bfc-bg: var(--background-primary, #fff);
+  --grid-offset-y: 35px;
+  --grid-radius-coef: 0.285;
+  --grid-radius: calc(var(--grid-unit) * var(--grid-radius-coef));
+  --grid-line-opacity-light: 0.045;
+  --grid-line-opacity-dark: 0.04;
+  --list-indent: calc(var(--grid-unit) * 2);
+  --mask-fade-y: var(--lh-normal);
+  --mask-fade-x: calc(var(--grid-unit) * 4 + 4px);
+}
+
+body.plugin-tf-grid.theme-dark, body.plugin-tf-grid .theme-dark {
+  --grid-line-color: rgb(255 255 255 / var(--grid-line-opacity-dark));
+}
+body.plugin-tf-grid.theme-light, body.plugin-tf-grid .theme-light {
+  --grid-line-color: rgb(0 0 0 / var(--grid-line-opacity-light));
+}
+
+/* ── 一、网格渲染与画布标定 ── */
+/* Visual layer: grid lines + edge fade mask.
+   Controlled by body.plugin-tf-grid-visible (sub-toggle).
+   When off, the deterministic layout engine still runs but
+   grid lines are invisible — typewriter scroll still benefits
+   from integer-pixel line heights and uniform layout. */
+body.plugin-tf-grid.plugin-tf-grid-visible .cm-scroller,
+body.plugin-tf-grid.plugin-tf-grid-visible .markdown-reading-view {
+  background-size: var(--grid-unit) var(--grid-unit) !important;
+  background-position: 0 calc(var(--grid-offset-y) - var(--grid-line-w)) !important;
+  background-image:
+    linear-gradient(to right, var(--grid-line-color) var(--grid-line-w), transparent var(--grid-line-w)),
+    linear-gradient(to bottom, var(--grid-line-color) var(--grid-line-w), transparent var(--grid-line-w)) !important;
+  background-attachment: local !important;
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent 0%, #fff var(--mask-fade-y), #fff calc(100% - var(--mask-fade-y)), transparent 100%),
+    linear-gradient(to right, transparent 0%, #fff var(--mask-fade-x), #fff calc(100% - var(--mask-fade-x)), transparent 100%);
+  mask-image:
+    linear-gradient(to bottom, transparent 0%, #fff var(--mask-fade-y), #fff calc(100% - var(--mask-fade-y)), transparent 100%),
+    linear-gradient(to right, transparent 0%, #fff var(--mask-fade-x), #fff calc(100% - var(--mask-fade-x)), transparent 100%);
+  -webkit-mask-attachment: scroll !important; mask-attachment: scroll !important;
+}
+body.plugin-tf-grid.plugin-tf-grid-visible .cm-scroller:has(.cm-table-widget) {
+  -webkit-mask-image: none !important; mask-image: none !important;
+}
+/* Structural: remove top padding so first line sits flush on the grid.
+   Active whenever grid module is enabled (visual lines optional). */
+body.plugin-tf-grid .cm-content, body.plugin-tf-grid .markdown-preview-section {
+  padding-block-start: 0 !important;
+}
+
+/* ── 二、text-box-trim 基线对齐 ── */
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-line {
+  line-height: var(--lh-normal) !important;
+}
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-line:is(.HyperMD-header-1, .HyperMD-header-2, .HyperMD-header-3) {
+  line-height: var(--lh-heading) !important;
+}
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-line:is(.HyperMD-header-4, .HyperMD-header-5, .HyperMD-header-6) {
+  line-height: var(--lh-normal) !important;
+}
+
+body.plugin-tf-grid .markdown-rendered :is(p, blockquote, ul, ol) {
+  line-height: var(--lh-normal) !important;
+  margin-block-start: 0 !important; margin-block-end: calc(var(--lh-normal) - 1em) !important;
+  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+body.plugin-tf-grid .markdown-rendered li {
+  margin-block: 0 !important; padding-block: 0 !important;
+  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+body.plugin-tf-grid .markdown-rendered :is(h1, h2, h3) {
+  line-height: var(--lh-heading) !important;
+  margin-block-start: calc(var(--grid-unit) * 2) !important;
+  margin-block-end: calc(var(--lh-heading) - 1em) !important;
+  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+body.plugin-tf-grid .markdown-rendered :is(h4, h5, h6) {
+  line-height: var(--lh-normal) !important;
+  margin-block-start: var(--grid-unit) !important;
+  margin-block-end: calc(var(--lh-normal) - 1em) !important;
+  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+
+/* ── 三、编辑视图补充 ── */
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-line.HyperMD-hr {
+  min-height: var(--lh-normal) !important; line-height: var(--lh-normal) !important;
+}
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-line.HyperMD-hr hr {
+  margin-block-start: calc((var(--lh-normal) - var(--grid-border-w)) / 2) !important;
+  margin-block-end: 0 !important; height: 1px !important; width: 100%;
+}
+
+/* ── 四、阅读视图补充 ── */
+body.plugin-tf-grid .markdown-rendered :is(ul ul, ul ol, ol ul, ol ol) { margin-block-end: 0 !important; }
+body.plugin-tf-grid .markdown-rendered blockquote { padding-block: var(--grid-unit) !important; }
+body.plugin-tf-grid .markdown-rendered blockquote > :last-child,
+body.plugin-tf-grid .markdown-rendered li > :last-child { margin-block-end: 0 !important; }
+body.plugin-tf-grid .markdown-rendered hr {
+  margin-block-start: var(--grid-unit) !important;
+  margin-block-end: calc(var(--grid-unit) * 2 - var(--grid-border-w)) !important;
+  border: none !important; border-bottom: var(--grid-border-w) solid var(--background-modifier-border) !important;
+}
+body.plugin-tf-grid .markdown-rendered .footnotes {
+  margin-block-start: calc(var(--grid-unit) * 3);
+  border-top: var(--grid-border-w) solid var(--background-modifier-border);
+  padding-block-start: calc(var(--grid-unit) * 2 - var(--grid-border-w));
+}
+
+/* ── 五、内联异构组件基线镇压 ── */
+body.plugin-tf-grid .task-list-item-checkbox {
+  vertical-align: baseline !important; margin-block: 0 !important; position: relative; top: 0.15em;
+}
+body.plugin-tf-grid .markdown-rendered .tag,
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-hashtag {
+  vertical-align: baseline !important; line-height: 1 !important;
+  padding-block: 4px !important; margin-block: -4px !important; position: relative;
+}
+body.plugin-tf-grid :is(.markdown-rendered, .markdown-source-view.mod-cm6) :is(p, li, td, th, .callout-content, .footnotes, h1, h2, h3, h4, h5, h6) > code,
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-inline-code {
+  vertical-align: baseline !important; line-height: 1 !important;
+  padding-block: 2px !important; margin-block: -2px !important; position: relative;
+}
+body.plugin-tf-grid .markdown-rendered li::marker,
+body.plugin-tf-grid .markdown-rendered .list-bullet { line-height: 0 !important; }
+body.plugin-tf-grid .markdown-rendered sup, body.plugin-tf-grid .markdown-rendered sub,
+body.plugin-tf-grid .markdown-source-view.mod-cm6 sup, body.plugin-tf-grid .markdown-source-view.mod-cm6 sub {
+  line-height: 0 !important; margin-block: -1em !important;
+  position: relative !important; vertical-align: baseline !important;
+}
+body.plugin-tf-grid .markdown-rendered sup, body.plugin-tf-grid .markdown-source-view.mod-cm6 sup { top: -0.4em !important; }
+body.plugin-tf-grid .markdown-rendered sub, body.plugin-tf-grid .markdown-source-view.mod-cm6 sub { top: 0.25em !important; }
+
+/* ── 六、异构块级组件隔离 ── */
+body.plugin-tf-grid .markdown-rendered :is(pre, .callout, img) {
+  background-color: var(--grid-bfc-bg);
+  margin-block-start: var(--grid-unit) !important; margin-block-end: var(--grid-unit) !important;
+  border-radius: var(--grid-radius);
+}
+body.plugin-tf-grid .markdown-rendered :is(pre, .callout) {
+  border: var(--grid-border-w) solid var(--background-modifier-border) !important;
+  padding-block-start: calc(var(--grid-unit) - var(--grid-border-w)) !important;
+  padding-block-end: calc(var(--grid-unit) - var(--grid-border-w)) !important;
+}
+body.plugin-tf-grid .markdown-rendered .internal-embed {
+  margin-block: var(--grid-unit) !important;
+  border: 1px solid var(--background-modifier-border) !important; border-radius: var(--grid-radius);
+  padding-block: calc(var(--grid-unit) - var(--grid-border-w)) !important;
+  padding-inline: var(--grid-unit) !important; display: flow-root;
+}
+body.plugin-tf-grid :is(.embed-strict .internal-embed, .internal-embed.embed-strict) {
+  border: none !important; border-radius: 0 !important; padding: 0 !important;
+  padding-block: 0 !important; margin-block: 0 !important;
+}
+body.plugin-tf-grid .markdown-rendered .callout-title {
+  min-height: var(--lh-normal) !important; line-height: var(--lh-normal) !important;
+  padding-block: 0 !important; margin-block: 0 !important;
+}
+body.plugin-tf-grid .markdown-rendered .callout-content { padding-block: 0 !important; line-height: var(--lh-normal) !important; }
+body.plugin-tf-grid .markdown-rendered .callout-content > :last-child { margin-block-end: 0 !important; }
+body.plugin-tf-grid :is(.markdown-rendered pre code, .markdown-rendered pre, .markdown-source-view.mod-cm6 .cm-embed-block) {
+  line-height: calc(var(--grid-unit) * 2) !important;
+}
+body.plugin-tf-grid .markdown-rendered :is(table th, table td) {
+  line-height: calc(var(--grid-unit) * 2) !important;
+  padding-block-start: calc(var(--grid-unit) * 0.5) !important;
+  padding-block-end: calc(var(--grid-unit) * 0.5 - var(--grid-border-w)) !important;
+}
+
+/* ── 七、MathJax ── */
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math {
+  display: inline-block !important; height: var(--grid-unit) !important;
+  max-height: var(--grid-unit) !important; line-height: 0 !important;
+}
+body.plugin-tf-grid .markdown-rendered .math.math-inline mjx-container,
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math mjx-container {
+  display: inline-block !important; height: var(--grid-unit) !important;
+  line-height: 0 !important; overflow: visible !important; vertical-align: middle !important;
+}
+body.plugin-tf-grid :is(.markdown-rendered .math-block, .markdown-source-view.mod-cm6 .cm-math.cm-block-math, .math.math-block) {
+  background-color: color-mix(in srgb, var(--code-background, var(--grid-bfc-bg)) 60%, transparent);
+  margin-block: var(--grid-unit) !important; border-radius: var(--grid-radius);
+  line-height: calc(var(--grid-unit) * 2) !important;
+}
+
+/* ── 八、顶端 UI 规范化 ── */
+body.plugin-tf-grid .inline-title {
+  line-height: var(--lh-heading) !important; padding-block: 0 !important;
+  margin-block-start: calc(var(--grid-unit) * 2) !important;
+  margin-block-end: calc(var(--lh-heading) - 1em) !important;
+  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+body.plugin-tf-grid .metadata-property {
+  line-height: calc(var(--grid-unit) * 2) !important; min-height: calc(var(--grid-unit) * 2) !important; padding-block: 0 !important;
+}
+body.plugin-tf-grid .metadata-add-button {
+  line-height: calc(var(--grid-unit) * 2) !important; min-height: calc(var(--grid-unit) * 2) !important; padding-block: 0 !important;
+}
+body.plugin-tf-grid .metadata-container > :first-child { min-height: calc(var(--grid-unit) * 2) !important; }
+
+/* ── 九、打印屏蔽（仅影响网格视觉层） ── */
+@media print {
+  body.plugin-tf-grid.plugin-tf-grid-visible .cm-scroller,
+  body.plugin-tf-grid.plugin-tf-grid-visible .markdown-reading-view {
+    background-image: none !important; -webkit-mask-image: none !important; mask-image: none !important;
+  }
+}
+
+/* ── 十、容器响应式 ── */
+body.plugin-tf-grid .cm-scroller, body.plugin-tf-grid .markdown-reading-view {
+  container-type: inline-size; container-name: ob-content;
+}
+@container ob-content (max-width: 480px) {
+  body.plugin-tf-grid :is(.markdown-source-view, .markdown-rendered) {
+    --grid-unit: 12px; --grid-radius: calc(var(--grid-unit) * var(--grid-radius-coef));
+  }
+  body.plugin-tf-grid .markdown-rendered :is(h1, h2, h3) {
+    margin-block-start: var(--grid-unit) !important; margin-block-end: calc(var(--grid-unit) * 0.5) !important;
+  }
+  body.plugin-tf-grid :is(.markdown-rendered pre, .markdown-rendered .callout) {
+    padding-block-start: calc(var(--grid-unit) - var(--grid-border-w)) !important;
+    padding-block-end: calc(var(--grid-unit) - var(--grid-border-w)) !important;
+  }
+  body.plugin-tf-grid .markdown-rendered :is(table th, table td) {
+    line-height: calc(var(--grid-unit) * 1.8) !important;
+    padding-block-start: calc(var(--grid-unit) * 0.3) !important;
+    padding-block-end: calc(var(--grid-unit) * 0.3 - var(--grid-border-w)) !important;
+  }
+}
+@container ob-content (max-width: 360px) {
+  body.plugin-tf-grid :is(.markdown-source-view, .markdown-rendered) { --grid-unit: 11px; }
+}
+
+/* ── 十一、WCAG 2.1 AA ── */
+body.plugin-tf-grid .markdown-rendered a { text-decoration: underline; text-underline-offset: 2px; }
+body.plugin-tf-grid .markdown-rendered a:focus-visible,
+body.plugin-tf-grid .markdown-rendered button:focus-visible {
+  outline: 2px solid var(--text-accent); outline-offset: 2px;
+}
+
+/* ── 十二、滚动驱动动画（阅读进度条，仅网格视觉层激活） ── */
+@supports (animation-timeline: scroll()) {
+  body.plugin-tf-grid.plugin-tf-grid-visible .markdown-reading-view { position: relative; }
+  body.plugin-tf-grid.plugin-tf-grid-visible .markdown-reading-view::after {
+    content: ""; position: sticky; top: 0; left: 0; width: 3px; height: 3px;
+    background-color: var(--text-accent); transform-origin: top; transform: scaleY(1);
+    animation: smooth-progress linear forwards; animation-timeline: scroll(nearest block);
+    z-index: 100; pointer-events: none;
+  }
+  @keyframes smooth-progress { from { transform: scaleY(0); } to { transform: scaleY(100); } }
+}
+
+/* ── 十三、View Transitions API ── */
+@supports (view-transition-name: test) {
+  body.plugin-tf-grid .markdown-reading-view { view-transition-name: reading-content; }
+  body.plugin-tf-grid .markdown-source-view { view-transition-name: source-content; }
+  ::view-transition-old(reading-content) { animation: fade-out 0.2s ease-out; }
+  ::view-transition-new(reading-content) { animation: fade-in 0.2s ease-in; }
+  ::view-transition-old(source-content) { animation: fade-out 0.15s ease-out; }
+  ::view-transition-new(source-content) { animation: fade-in 0.15s ease-in; }
+  @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* ==========================================================
+   CJK Prose Formatting (中文段落排版)
+   Source: styles/cjk-prose.css
+   Controlled by:
+     body.plugin-tf-cjk-prose                          — 基础排版（默认左对齐）
+     body.plugin-tf-cjk-prose.plugin-tf-cjk-justify    — 两端对齐（sub-toggle）
+     body.plugin-tf-cjk-prose.plugin-tf-cjk-indent     — 首行缩进（sub-toggle）
+
+   Independent of Grid — Grid handles vertical (block-axis)
+   geometry; CJK Prose handles horizontal (inline-axis) format.
+
+   ## Default: text-align: left (not justify)
+   CM6 Live Preview renders paragraphs as per-line DIVs (.cm-line)
+   with no paragraph-level container. text-align: justify on each
+   independent .cm-line means every line including the last gets
+   stretched — the browser can't distinguish mid-paragraph from
+   paragraph-last. When mixed with long English/inline code that
+   wrap early, the gap gets distributed among CJK characters,
+   creating the "river effect" (河流效应).
+
+   CJK characters are naturally monospaced, so text-align: left
+   produces a clean right edge. Most Chinese digital writing products
+   (语雀, 飞书文档, iA Writer, Ulysses) use left alignment in editor
+   mode. CLREQ §5.2 allows both approaches for screen display.
+
+   ## Justify sub-toggle: safety measures (plugin-tf-cjk-justify)
+   - text-justify: inter-ideograph — CJK-specific algorithm
+   - text-align-last: left — paragraph-last line should not stretch
+   - hyphens: auto — break long English words at syllable boundaries
+   - inline code word-break: break-all — the #1 river effect fix
+
+   ## text-indent: Reading View only
+   CM6 per-line DIVs make first-line indent technically impossible
+   in Live Preview. Reading View <p> containers work correctly.
+
+   ## word-break strategy
+   No keep-all — CJK browsers already handle CJK line-breaking
+   natively. keep-all restricts wrapping and can worsen rivers.
+
+   与插件生态的关系：
+   - Easy Typing: 自动中英文空格（输入时），本模块做视觉排版（渲染时），互补
+   - CJK Bold Fix: 修复 CM6 加粗/斜体解析，本模块做段落格式，互补
+   - heti: 通用中文排版 CSS，本模块 = 插件级 toggle + 视图感知 + 打字机/网格协同
+   ========================================================== */
+
+/* ── 基础排版（CJK Prose 模块核心，全视图） ── */
+body.plugin-tf-cjk-prose .markdown-rendered :is(p, li, blockquote, td, th) {
+  text-align: left;
+  overflow-wrap: break-word;
+}
+body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-line {
+  text-align: left;
+  overflow-wrap: break-word;
+}
+
+/* ── CJK 半角标点（OpenType halt，全视图） ── */
+body.plugin-tf-cjk-prose .markdown-rendered :is(p, li, blockquote, td, th),
+body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-line {
+  font-feature-settings: "kern" 1, "liga" 1, "halt";
+}
+
+/* ── 两端对齐（需 sub-toggle plugin-tf-cjk-justify，默认关闭） ── */
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-rendered :is(p, li, blockquote, td, th) {
+  text-align: justify;
+  -webkit-text-justify: inter-ideograph;
+  text-justify: inter-ideograph;
+  text-align-last: left;
+  hyphens: auto;
+}
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm-line {
+  text-align: justify;
+  -webkit-text-justify: inter-ideograph;
+  text-justify: inter-ideograph;
+  hyphens: auto;
+}
+/* Exclude: code blocks, headings, hr */
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm-line:is(
+  .HyperMD-header,
+  .HyperMD-codeblock,
+  .HyperMD-hr
+) {
+  text-align: left;
+  hyphens: none;
+}
+
+/* ── 行内代码断词（仅 justify 模式下需要） ── */
+/* #1 river-effect fix: a long inline code token wrapping entirely
+   to the next line creates a gap that justify distributes among CJK
+   characters. break-all on code allows splitting mid-token —
+   a broken code token is less harmful than stretched paragraphs. */
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify :is(.markdown-rendered code, .cm-inline-code) {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* ── 首行缩进（仅在阅读视图生效，需要 sub-toggle plugin-tf-cjk-indent） ── */
+/* !important required: Obsidian themes and built-in styles may reset
+   text-indent on .markdown-rendered p with equal or higher specificity. */
+body.plugin-tf-cjk-prose.plugin-tf-cjk-indent .markdown-rendered p {
+  text-indent: 2em !important;
+}
+body.plugin-tf-cjk-prose.plugin-tf-cjk-indent .markdown-rendered :is(h1, h2, h3, h4, h5, h6) + p,
+body.plugin-tf-cjk-prose.plugin-tf-cjk-indent .markdown-rendered hr + p,
+body.plugin-tf-cjk-prose.plugin-tf-cjk-indent .markdown-rendered blockquote > p:first-of-type {
+  text-indent: 0 !important;
+}
+body.plugin-tf-cjk-prose.plugin-tf-cjk-indent .markdown-rendered li > p {
+  text-indent: 0 !important;
+}
+
+/* ── 行首标点缩进补偿（实验性，Chrome only） ── */
+@supports (text-spacing-trim: space-first) or (-webkit-text-spacing-trim: space-first) {
+  body.plugin-tf-cjk-prose .markdown-rendered :is(p, li, blockquote),
+  body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-line {
+    text-spacing-trim: space-first;
+    -webkit-text-spacing-trim: space-first;
+  }
+}
+
+/* ===== Breathing Cursor ===== */
+/* Options: breatheEnabled, breatheDuration, breatheMinOpacity */
+body.plugin-tf-breathe .cm-editor .cm-cursor-primary {
+  animation: tf-breathe-pulse var(--tf-breathe-duration, 2.8s) ease-in-out infinite !important;
+}
+
+/* Pause when actively typing — use animation-play-state: paused so the
+   animation resumes from where it left off, avoiding abrupt jumps. */
+body.plugin-tf-breathe.tf-breathe-typing .cm-editor .cm-cursor-primary {
+  animation-play-state: paused !important;
+  opacity: 1 !important;
+}
+
+/* Subtle glow effect — constant (not breathing) to avoid extra motion */
+body.plugin-tf-breathe .cm-editor .cm-cursor {
+  box-shadow: 0 0 4px 1px color-mix(in srgb, var(--caret-color, var(--text-accent, #6c8cff)) 30%, transparent);
+}
+
+@keyframes tf-breathe-pulse {
+  0%, 100% { opacity: var(--tf-breathe-min-opacity, 0.2); }
+  50%      { opacity: 1; }
+}
+
+/* Respect system accessibility preferences */
+@media (prefers-reduced-motion: reduce) {
+  body.plugin-tf-breathe .cm-editor .cm-cursor-primary {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ===== Strikethrough Animation ===== */
+/* Animated left-to-right reveal for ~~strikethrough~~ text.
+   Uses background-image gradient technique to draw the line
+   progressively, replacing the instant text-decoration: line-through.
+   Controlled by: body.plugin-tf-strike-anim toggle
+   CSS variable: --tf-strike-duration (default 0.35s) */
+
+/* Reading View: <s> and <del> elements */
+body.plugin-tf-strike-anim .markdown-rendered :is(s, del) {
+  text-decoration: none !important;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1.5px;
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  animation: tf-strike-reveal var(--tf-strike-duration, 0.35s) ease forwards;
+}
+
+/* Live Preview: CM6 wraps strikethrough in .cm-strikethrough spans */
+body.plugin-tf-strike-anim .markdown-source-view.mod-cm6 .cm-strikethrough {
+  text-decoration: none !important;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1.5px;
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  animation: tf-strike-reveal var(--tf-strike-duration, 0.35s) ease forwards;
+}
+
+@keyframes tf-strike-reveal {
+  from { background-size: 0% 1.5px; }
+  to   { background-size: 100% 1.5px; }
+}
+
+/* Respect system accessibility preferences */
+@media (prefers-reduced-motion: reduce) {
+  body.plugin-tf-strike-anim .markdown-rendered :is(s, del),
+  body.plugin-tf-strike-anim .markdown-source-view.mod-cm6 .cm-strikethrough {
+    animation: none !important;
+    text-decoration: line-through !important;
+    background-image: none !important;
+  }
+}
+
+/* ── CJK 下划线偏移（全视图） ── */
+body.plugin-tf-cjk-prose .markdown-rendered a {
+  text-underline-offset: 0.2em;
+}
+body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-link,
+body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-url,
+body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-hmd-internal-link {
+  text-underline-offset: 0.2em;
+}
