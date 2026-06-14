@@ -846,3 +846,11 @@ body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-url,
 body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-hmd-internal-link {
   text-underline-offset: 0.2em;
 }
+
+/* ===== Status Bar Indicator ===== */
+.tf-status-bar {
+  font-size: 0.75em;
+  opacity: 0.7;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+}

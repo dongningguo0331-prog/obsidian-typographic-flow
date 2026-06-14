@@ -6,7 +6,7 @@
 
 > 为 [Obsidian](https://obsidian.md) 打造的统一排版体验。将打字机滚动、专注模式、阅读配色、基线网格和中文排版整合为一体。
 
-[English](README.md) | 中文
+[English](01-Project/50-obsidian乐高计划/obsidian-typographic-flow/README.md) | 中文
 
 ---
 

@@ -1,0 +1,45 @@
+{
+  "name": "obsidian-typographic-flow",
+  "version": "1.1.0",
+  "description": "Typewriter scrolling, zen/focus modes, reading colors, and baseline grid — a unified typographic editing experience.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "typography",
+    "typewriter",
+    "focus-mode",
+    "zen-mode",
+    "baseline-grid",
+    "cjk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@codemirror/language": "^6.0.0",
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
+    "@lezer/common": "^1.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.21.0",
+    "eslint": "^8.57.0",
+    "obsidian": "latest",
+    "prettier": "^3.0.0",
+    "tslib": "^2.6.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,10 +1,10 @@
 {
   "id": "obsidian-typographic-flow",
   "name": "Typographic Flow",
-  "author": "",
-  "authorUrl": "",
+  "author": "dongningguo0331-prog",
+  "authorUrl": "https://github.com/dongningguo0331-prog",
   "description": "Typewriter scrolling, zen/focus modes, reading colors, and baseline grid — a unified typographic editing experience.",
   "isDesktopOnly": false,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "1.4.0"
 }
