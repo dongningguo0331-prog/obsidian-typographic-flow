@@ -75,6 +75,7 @@ function _deepMerge<T extends Record<string, unknown>>(
 
 const SETTINGS_VERSION = 1;
 
+// v1: initial schema — no migration needed, placeholder for future versions
 const SETTING_MIGRATIONS: Record<number, (s: PluginSettings) => PluginSettings> = {
   1: (s) => s,
 };
@@ -90,6 +91,52 @@ function migrateSettings(settings: PluginSettings): PluginSettings {
       settings.settingsVersion = SETTINGS_VERSION;
       break;
     }
+  }
+  return settings;
+}
+
+// ── Settings Validation ──
+
+const _booleanKeys: readonly (keyof PluginSettings)[] = [
+  'enabled', 'suspensionEnabled', 'smoothScrollEnabled', 'smartOffsetEnabled',
+  'zenEnabled', 'colorsEnabled', 'gridEnabled', 'gridShowLines',
+  'cjkProseEnabled', 'cjkProseJustify', 'cjkProseIndent',
+  'breatheEnabled', 'strikeAnimEnabled',
+];
+
+const _numberKeys: readonly (keyof PluginSettings)[] = [
+  'typewriterOffset', 'deadZone', 'zenOpacity',
+  'colorsAccentHue', 'colorsAccentSat', 'colorsBgWarmth', 'colorsTextContrast',
+  'gridUnit', 'gridOffsetY', 'gridLineOpacityLight', 'gridLineOpacityDark', 'gridRadiusCoef',
+  'breatheDuration', 'breatheMinOpacity', 'strikeAnimDuration',
+];
+
+function validateSettings(settings: PluginSettings): PluginSettings {
+  const defaults = DEFAULT_SETTINGS;
+  const rec = settings as unknown as Record<string, unknown>;
+  let hasInvalid = false;
+
+  for (const key of _booleanKeys) {
+    if (typeof rec[key] !== 'boolean') {
+      rec[key] = defaults[key];
+      hasInvalid = true;
+    }
+  }
+  for (const key of _numberKeys) {
+    const val = rec[key];
+    if (typeof val !== 'number' || !Number.isFinite(val)) {
+      rec[key] = defaults[key];
+      hasInvalid = true;
+    }
+  }
+  if (typeof settings.focusMode !== 'string' ||
+      !['off', 'line', 'paragraph', 'heading', 'sentence'].includes(settings.focusMode)) {
+    settings.focusMode = 'off';
+    hasInvalid = true;
+  }
+
+  if (hasInvalid) {
+    console.warn('[TypographicFlow] Invalid settings detected, falling back to defaults for affected fields');
   }
   return settings;
 }
@@ -219,6 +266,21 @@ export default class TypographicFlowPlugin extends Plugin {
   // ---- Lifecycle ----
 
   async onload(): Promise<void> {
+    // Create Compartments once — they persist for the plugin's lifetime
+    this._compartments = {
+      typewriter: new Compartment(),
+      focusMode: new Compartment(),
+    };
+    this._compartmentValues = {
+      typewriter: this._compartments.typewriter.of([]),
+      focusMode: this._compartments.focusMode.of([]),
+    };
+    this.registerEditorExtension(Object.values(this._compartmentValues));
+
+    this.zenMode = new ZenModeManager();
+    this.breathe = new BreathingCursorManager();
+    this.strike = new StrikethroughAnimManager();
+
     try {
       await this._initPlugin();
     } catch (err) {
@@ -227,41 +289,23 @@ export default class TypographicFlowPlugin extends Plugin {
     }
   }
 
-  /** Re-initialize all modules from current settings. Public for settings tab reset. */
+  /** Re-initialize all modules from current settings. */
   async _initPlugin(): Promise<void> {
     const loaded = await this.loadData();
     const migrated = migrateSettings(loaded || {});
-    this.settings = _deepMerge(
-      DEFAULT_SETTINGS as unknown as Record<string, unknown>,
-      migrated as unknown as Record<string, unknown>,
-    ) as unknown as PluginSettings;
-
-    this._compartments = {
-      typewriter: new Compartment(),
-      focusMode: new Compartment(),
-    };
-
-    this._compartmentValues = {
-      typewriter: this._compartments.typewriter.of(
-        this.settings.enabled
-          ? buildTypewriterExtensions(this.settings)
-          : [],
-      ),
-      focusMode: this._compartments.focusMode.of(
-        this.settings.focusMode !== 'off'
-          ? buildFocusExtensions(this.settings.focusMode)
-          : [],
-      ),
-    };
-
-    this.registerEditorExtension(
-      Object.values(this._compartmentValues),
+    this.settings = validateSettings(
+      _deepMerge(
+        DEFAULT_SETTINGS as unknown as Record<string, unknown>,
+        migrated as unknown as Record<string, unknown>,
+      ) as unknown as PluginSettings,
     );
 
-    this.zenMode = new ZenModeManager();
+    // Reconfigure compartments (do NOT recreate them)
     if (this.settings.enabled) {
       document.body.classList.add('plugin-cm-typewriter-scroll');
-      this.dispatchToEditors(buildTypewriterExtensions(this.settings));
+      const exts = buildTypewriterExtensions(this.settings);
+      this._compartmentValues.typewriter = this._compartments.typewriter.of(exts);
+      this.dispatchToEditors(exts);
     }
 
     if (this.settings.zenEnabled) {
@@ -269,14 +313,12 @@ export default class TypographicFlowPlugin extends Plugin {
       this.zenMode.enable();
     }
 
-    this.breathe = new BreathingCursorManager();
     if (this.settings.breatheEnabled) {
       this.breathe.setDuration(this.settings.breatheDuration);
       this.breathe.setMinOpacity(this.settings.breatheMinOpacity);
       this.breathe.enable();
     }
 
-    this.strike = new StrikethroughAnimManager();
     if (this.settings.strikeAnimEnabled) {
       this.strike.setDuration(this.settings.strikeAnimDuration);
       this.strike.enable();
@@ -294,8 +336,15 @@ export default class TypographicFlowPlugin extends Plugin {
     if (this.settings.cjkProseIndent) this.enableCjkIndent();
 
     // Recalculate typewriter offset when layout changes (sidebar toggle, split pane, etc.)
+    // Debounced via requestAnimationFrame to avoid rebuilding extensions on every event.
     if (this.settings.enabled) {
-      this._layoutChangeHandler = () => this.dispatchToEditors(buildTypewriterExtensions(this.settings));
+      let raf = 0;
+      this._layoutChangeHandler = () => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          this.dispatchToEditors(buildTypewriterExtensions(this.settings));
+        });
+      };
       this.registerEvent(this.app.workspace.on('layout-change', this._layoutChangeHandler));
     }
 
@@ -308,15 +357,37 @@ export default class TypographicFlowPlugin extends Plugin {
     this.addCommands();
   }
 
+  /** Reset all settings to defaults and re-initialize. */
+  async resetToDefaults(): Promise<void> {
+    // Tear down current state
+    this.disableTypewriterScroll();
+    this.zenMode?.disable();
+    this.breathe?.disable();
+    this.strike?.disable();
+    document.body.classList.remove('plugin-tf-focus');
+    this.disableColors();
+    this.disableGrid();
+    this.disableCjkProse();
+    this.disableCjkJustify();
+    this.disableCjkIndent();
+
+    // Reset settings
+    this.settings = { ...DEFAULT_SETTINGS, settingsVersion: SETTINGS_VERSION };
+    await this.saveData(this.settings);
+
+    // Re-initialize
+    await this._initPlugin();
+  }
+
   onunload(): void {
     this.disableTypewriterScroll();
     this._layoutChangeHandler = null;
     this._statusBarItem?.remove();
     this._statusBarItem = null;
-    this.zenMode.disable();
-    this.zenMode.destroy();
-    this.breathe.destroy();
-    this.strike.destroy();
+    this.zenMode?.disable();
+    this.zenMode?.destroy();
+    this.breathe?.destroy();
+    this.strike?.destroy();
     document.body.classList.remove('plugin-tf-focus');
     this.disableColors();
     this.disableGrid();
@@ -438,10 +509,23 @@ export default class TypographicFlowPlugin extends Plugin {
 
   // ---- Typewriter Toggle & Settings ----
 
-  private _notify(label: string, on: boolean): void {
-    new Notice(`${label}: ${on ? 'ON' : 'OFF'}`);
+  private _notify(_label: string, _on: boolean): void {
+    // Status bar is the primary feedback channel — no Notice spam on rapid toggles.
+    // Users can see active modes in the status bar (⚙ TW·Z·FL·C·G·CJK).
     this._updateStatusBar();
   }
+
+  private static readonly _statusAbbreviations: Record<string, string> = {
+    TW: 'Typewriter Scrolling',
+    Z: 'Zen Mode',
+    FL: 'Focus: Line',
+    FP: 'Focus: Paragraph',
+    FH: 'Focus: Heading',
+    FS: 'Focus: Sentence',
+    C: 'Reading Colors',
+    G: 'Baseline Grid',
+    CJK: 'CJK Prose',
+  };
 
   private _updateStatusBar(): void {
     if (!this._statusBarItem) return;
@@ -457,7 +541,17 @@ export default class TypographicFlowPlugin extends Plugin {
     if (this.settings.colorsEnabled) parts.push('C');
     if (this.settings.gridEnabled) parts.push('G');
     if (this.settings.cjkProseEnabled) parts.push('CJK');
-    this._statusBarItem.setText(parts.length ? `⚙ ${parts.join('·')}` : '');
+
+    if (parts.length) {
+      this._statusBarItem.setText(`⚙ ${parts.join('·')}`);
+      const fullNames = parts.map(
+        (p) => TypographicFlowPlugin._statusAbbreviations[p] ?? p,
+      );
+      this._statusBarItem.setAttribute('title', fullNames.join(', '));
+    } else {
+      this._statusBarItem.setText('');
+      this._statusBarItem.removeAttribute('title');
+    }
   }
 
   toggleTypewriterScroll(newValue: boolean | null = null): void {
@@ -554,10 +648,6 @@ export default class TypographicFlowPlugin extends Plugin {
 
   changeFocusMode(mode: FocusMode = 'off'): void {
     this.settings.focusMode = mode;
-    const labels: Record<FocusMode, string> = {
-      off: 'Off', line: 'Line', paragraph: 'Paragraph', heading: 'Heading', sentence: 'Sentence',
-    };
-    new Notice(`Focus: ${labels[mode]}`);
     this._updateStatusBar();
     if (mode === 'off') {
       document.body.classList.remove('plugin-tf-focus');
@@ -868,12 +958,8 @@ class TypographicFlowSettingTab extends PluginSettingTab {
       .setDesc('Restore all settings to their original values')
       .addButton((btn) =>
         btn.setButtonText('Reset').setWarning().onClick(async () => {
-          this.plugin.settings = { ...DEFAULT_SETTINGS, settingsVersion: SETTINGS_VERSION };
-          await this.plugin.saveData(this.plugin.settings);
-          // Re-apply all modules
-          this.plugin.onunload();
-          await this.plugin._initPlugin();
-          this.display(); // Re-render settings
+          await this.plugin.resetToDefaults();
+          this.display();
           new Notice('Settings reset to defaults');
         }),
       );
@@ -892,7 +978,13 @@ class TypographicFlowSettingTab extends PluginSettingTab {
       const settingsRecord = this.plugin.settings as unknown as Record<string, unknown>;
       const pluginRecord = this.plugin as unknown as Record<string, (...args: unknown[]) => void>;
       const val = () => settingsRecord[s.key];
-      const call = (v: unknown) => pluginRecord[s.method](v);
+      const call = (v: unknown) => {
+        if (typeof pluginRecord[s.method] !== 'function') {
+          console.error(`[TypographicFlow] Settings method not found: ${s.method}`);
+          return;
+        }
+        pluginRecord[s.method](v);
+      };
 
       if (s.type === 'toggle') {
         setting.addToggle((t) => t.setValue(val() as boolean).onChange(call as (v: boolean) => void));

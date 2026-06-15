@@ -55,9 +55,11 @@ export class BreathingCursorManager {
 
     // Desktop: keydown catches physical keyboard input
     this.keyHandler = (e: KeyboardEvent) => {
+      // Skip during IME composition (CJK input)
+      if (e.isComposing) return;
       if (
         e.key.length === 1 ||
-        ['Backspace', 'Delete', 'Enter', 'Tab'].includes(e.key)
+        ['Backspace', 'Delete', 'Enter'].includes(e.key)
       ) {
         this.notifyActivity();
       }

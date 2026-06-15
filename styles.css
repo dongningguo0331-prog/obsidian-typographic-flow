@@ -20,9 +20,13 @@
    Previously locked behind body.plugin-tf-grid.
    ========================================================== */
 :root {
-  text-autospace: normal;       /* CJK-Latin auto-spacing. Baseline 2025 */
   text-wrap: pretty;            /* Prevent typographic orphans. Baseline 2024 */
   font-feature-settings: "kern" 1, "liga" 1;  /* OpenType kerning + ligatures */
+}
+@supports (text-autospace: normal) {
+  :root {
+    text-autospace: normal;     /* CJK-Latin auto-spacing. Baseline 2025 */
+  }
 }
 body .markdown-rendered :is(h1, h2, h3) {
   text-wrap: balance;           /* Balanced heading lines */
@@ -90,7 +94,7 @@ body.plugin-tf-focus .HyperMD-quote.tf-focus-dim {
   right: 0;
   pointer-events: none;
   z-index: 1;
-  background: var(--background-primary);
+  background: var(--background-primary, #fff);
   opacity: 0.4;
 }
 
@@ -446,23 +450,39 @@ body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-line:is(.HyperMD-header-4,
 body.plugin-tf-grid .markdown-rendered :is(p, blockquote, ul, ol) {
   line-height: var(--lh-normal) !important;
   margin-block-start: 0 !important; margin-block-end: calc(var(--lh-normal) - 1em) !important;
-  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+@supports (text-box-trim: both) {
+  body.plugin-tf-grid .markdown-rendered :is(p, blockquote, ul, ol) {
+    text-box-trim: both; text-box-edge: ideographic ideographic;
+  }
 }
 body.plugin-tf-grid .markdown-rendered li {
   margin-block: 0 !important; padding-block: 0 !important;
-  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+@supports (text-box-trim: both) {
+  body.plugin-tf-grid .markdown-rendered li {
+    text-box-trim: both; text-box-edge: ideographic ideographic;
+  }
 }
 body.plugin-tf-grid .markdown-rendered :is(h1, h2, h3) {
   line-height: var(--lh-heading) !important;
   margin-block-start: calc(var(--grid-unit) * 2) !important;
   margin-block-end: calc(var(--lh-heading) - 1em) !important;
-  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+@supports (text-box-trim: both) {
+  body.plugin-tf-grid .markdown-rendered :is(h1, h2, h3) {
+    text-box-trim: both; text-box-edge: ideographic ideographic;
+  }
 }
 body.plugin-tf-grid .markdown-rendered :is(h4, h5, h6) {
   line-height: var(--lh-normal) !important;
   margin-block-start: var(--grid-unit) !important;
   margin-block-end: calc(var(--lh-normal) - 1em) !important;
-  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+@supports (text-box-trim: both) {
+  body.plugin-tf-grid .markdown-rendered :is(h4, h5, h6) {
+    text-box-trim: both; text-box-edge: ideographic ideographic;
+  }
 }
 
 /* ── 三、编辑视图补充 ── */
@@ -571,7 +591,11 @@ body.plugin-tf-grid .inline-title {
   line-height: var(--lh-heading) !important; padding-block: 0 !important;
   margin-block-start: calc(var(--grid-unit) * 2) !important;
   margin-block-end: calc(var(--lh-heading) - 1em) !important;
-  text-box-trim: both; text-box-edge: ideographic ideographic;
+}
+@supports (text-box-trim: both) {
+  body.plugin-tf-grid .inline-title {
+    text-box-trim: both; text-box-edge: ideographic ideographic;
+  }
 }
 body.plugin-tf-grid .metadata-property {
   line-height: calc(var(--grid-unit) * 2) !important; min-height: calc(var(--grid-unit) * 2) !important; padding-block: 0 !important;
@@ -593,7 +617,7 @@ body.plugin-tf-grid .metadata-container > :first-child { min-height: calc(var(--
 body.plugin-tf-grid .cm-scroller, body.plugin-tf-grid .markdown-reading-view {
   container-type: inline-size; container-name: ob-content;
 }
-@container ob-content (max-width: 480px) {
+@container ob-content (max-width: 30em) {
   body.plugin-tf-grid :is(.markdown-source-view, .markdown-rendered) {
     --grid-unit: 12px; --grid-radius: calc(var(--grid-unit) * var(--grid-radius-coef));
   }
@@ -610,7 +634,7 @@ body.plugin-tf-grid .cm-scroller, body.plugin-tf-grid .markdown-reading-view {
     padding-block-end: calc(var(--grid-unit) * 0.3 - var(--grid-border-w)) !important;
   }
 }
-@container ob-content (max-width: 360px) {
+@container ob-content (max-width: 22em) {
   body.plugin-tf-grid :is(.markdown-source-view, .markdown-rendered) { --grid-unit: 11px; }
 }
 

@@ -18,7 +18,7 @@ const SUSPEND_RECOVERY_MS = 3000;
 // ── Facets ──
 
 export const typewriterOffset = Facet.define<number, number>({
-  combine: (values) => (values.length ? Math.min(...values) : 0.5),
+  combine: (values) => (values.length ? values.reduce((a, b) => Math.min(a, b), Infinity) : 0.5),
 });
 
 export const deadZoneFacet = Facet.define<number, number>({
@@ -161,21 +161,24 @@ class TypewriterScrollPlugin {
   private _suspendedTimer: ReturnType<typeof setTimeout> | null = null;
   private isScrolling = false;
   private expectingScroll = false;
-  private _scrollHandler: () => void;
+  private _abortController: AbortController;
 
   constructor(private view: EditorView) {
+    this._abortController = new AbortController();
     const self = this;
-    this._scrollHandler = () => {
+    const scrollHandler = () => {
       if (!self.isScrolling && !self.expectingScroll) {
         self.suspended = true;
         self._armSuspendedRecovery();
       }
     };
-    this.view.scrollDOM.addEventListener('wheel', this._scrollHandler, {
+    this.view.scrollDOM.addEventListener('wheel', scrollHandler, {
       passive: true,
+      signal: this._abortController.signal,
     });
-    this.view.scrollDOM.addEventListener('touchmove', this._scrollHandler, {
+    this.view.scrollDOM.addEventListener('touchmove', scrollHandler, {
       passive: true,
+      signal: this._abortController.signal,
     });
   }
 
@@ -256,17 +259,21 @@ class TypewriterScrollPlugin {
     }
   }
 
-  private centerOnHead(update: import('@codemirror/view').ViewUpdate): void {
+  private centerOnHead(_update: import('@codemirror/view').ViewUpdate): void {
     const self = this;
     window.requestAnimationFrame(() => {
-      if (update.view.state.selection.ranges.length !== 1) {
+      // Use current state, not the captured update state — may have changed since the update
+      const view = self.view;
+      const state = view.state;
+
+      if (state.selection.ranges.length !== 1) {
         self.expectingScroll = false;
         return;
       }
 
-      const head = update.view.state.selection.main.head;
-      const headLine = update.view.state.doc.lineAt(head).number;
-      const dz = update.view.state.facet(deadZoneFacet);
+      const head = state.selection.main.head;
+      const headLine = state.doc.lineAt(head).number;
+      const dz = state.facet(deadZoneFacet);
 
       // Dead zone: skip if cursor hasn't moved enough lines
       if (
@@ -277,13 +284,13 @@ class TypewriterScrollPlugin {
         return;
       }
 
-      const domHeight = update.view.dom.clientHeight;
-      const baseOffset = update.view.state.facet(typewriterOffset);
-      const smartEnabled = update.view.state.facet(smartOffsetEnabled);
-      const typo = getTypographyConstants(update.view);
+      const domHeight = view.dom.clientHeight;
+      const baseOffset = state.facet(typewriterOffset);
+      const smartEnabled = state.facet(smartOffsetEnabled);
+      const typo = getTypographyConstants(view);
 
       const offset = computeEffectiveOffset(
-        update.view.state.doc,
+        state.doc,
         head,
         domHeight,
         baseOffset,
@@ -291,9 +298,9 @@ class TypewriterScrollPlugin {
         typo,
       );
 
-      const useSmooth = update.view.state.facet(smoothScrollEnabled);
+      const useSmooth = state.facet(smoothScrollEnabled);
       if (useSmooth) {
-        update.view.scrollDOM.style.scrollBehavior = 'smooth';
+        view.scrollDOM.style.scrollBehavior = 'smooth';
       }
 
       self._activeScrollGen++;
@@ -302,26 +309,30 @@ class TypewriterScrollPlugin {
       self.expectingScroll = false;
       self.myUpdate = true;
 
-      const effect = EditorView.scrollIntoView(head, { y: 'start', yMargin: offset });
-      update.view.dispatch({ effects: [effect] });
+      try {
+        const effect = EditorView.scrollIntoView(head, { y: 'start', yMargin: offset });
+        view.dispatch({ effects: [effect] });
+      } finally {
+        // Always ensure scrollBehavior is restored, even if dispatch throws
+      }
 
       if (useSmooth) {
         const onScrollEnd = () => {
           if (self._activeScrollGen !== scrollGen) return;
           clearTimeout(fallbackTimer);
-          update.view.scrollDOM.style.scrollBehavior = 'auto';
-          update.view.scrollDOM.removeEventListener('scrollend', onScrollEnd);
+          view.scrollDOM.style.scrollBehavior = 'auto';
+          view.scrollDOM.removeEventListener('scrollend', onScrollEnd);
           self.isScrolling = false;
         };
-        update.view.scrollDOM.addEventListener('scrollend', onScrollEnd, {
+        view.scrollDOM.addEventListener('scrollend', onScrollEnd, {
           once: false,
         });
 
         const fallbackTimer = setTimeout(() => {
           if (self._activeScrollGen !== scrollGen) return;
-          update.view.scrollDOM.removeEventListener('scrollend', onScrollEnd);
-          if (update.view.scrollDOM.style.scrollBehavior === 'smooth') {
-            update.view.scrollDOM.style.scrollBehavior = 'auto';
+          view.scrollDOM.removeEventListener('scrollend', onScrollEnd);
+          if (view.scrollDOM.style.scrollBehavior === 'smooth') {
+            view.scrollDOM.style.scrollBehavior = 'auto';
           }
           self.isScrolling = false;
         }, 600);
@@ -337,8 +348,7 @@ class TypewriterScrollPlugin {
   }
 
   destroy(): void {
-    this.view.scrollDOM.removeEventListener('wheel', this._scrollHandler);
-    this.view.scrollDOM.removeEventListener('touchmove', this._scrollHandler);
+    this._abortController.abort();
     this._clearSuspendedRecovery();
   }
 }

@@ -26,6 +26,21 @@ interface IntlWithSegmenter {
   ) => IntlSegmenter;
 }
 
+// ── Cached Segmenter instance ──
+const _sentenceSegmenter: IntlSegmenter | null = (() => {
+  const intlWithSeg = typeof Intl !== 'undefined'
+    ? (Intl as unknown as IntlWithSegmenter)
+    : undefined;
+  if (intlWithSeg?.Segmenter) {
+    try {
+      return new intlWithSeg.Segmenter([], { granularity: 'sentence' });
+    } catch (_e) {
+      return null;
+    }
+  }
+  return null;
+})();
+
 // ── Facet ──
 
 export type FocusMode = 'off' | 'line' | 'paragraph' | 'heading' | 'sentence';
@@ -49,6 +64,18 @@ function isInsideCodeBlock(tree: ReturnType<typeof syntaxTree>, pos: number): bo
     node = node.parent;
   }
   return false;
+}
+
+function isInsideFrontmatter(doc: Text, lineNum: number): boolean {
+  // YAML frontmatter: first line must be '---', closed by next '---'
+  if (lineNum <= 1) return false;
+  if (doc.line(1).text.trim() !== '---') return false;
+  for (let i = 2; i <= doc.lines; i++) {
+    if (doc.line(i).text.trim() === '---') {
+      return lineNum <= i;
+    }
+  }
+  return false; // unclosed frontmatter — treat as not inside
 }
 
 function getParagraphBounds(
@@ -81,7 +108,7 @@ function getSectionBounds(
   for (let i = cursorLine; i >= 1; i--) {
     const line = doc.line(i);
     const match = line.text.match(/^(#{1,6})\s/);
-    if (match && !isInsideCodeBlock(tree, line.from)) {
+    if (match && !isInsideCodeBlock(tree, line.from) && !isInsideFrontmatter(doc, i)) {
       headingLine = i;
       headingLevel = match[1].length;
       break;
@@ -95,7 +122,7 @@ function getSectionBounds(
   for (let i = cursorLine + 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const match = line.text.match(/^(#{1,6})\s/);
-    if (match && match[1].length <= headingLevel && !isInsideCodeBlock(tree, line.from)) {
+    if (match && match[1].length <= headingLevel && !isInsideCodeBlock(tree, line.from) && !isInsideFrontmatter(doc, i)) {
       end = i - 1;
       break;
     }
@@ -108,22 +135,30 @@ function getSentenceBounds(
   doc: Text,
   cursorPos: number,
 ): { start: number; end: number } {
-  const line = doc.lineAt(cursorPos);
-  const text = line.text;
-  const col = cursorPos - line.from;
+  const cursorLine = doc.lineAt(cursorPos);
 
-  // Try Intl.Segmenter first (modern browsers)
-  const intlWithSeg = typeof Intl !== 'undefined'
-    ? (Intl as unknown as IntlWithSegmenter)
-    : undefined;
+  // Gather the current paragraph (contiguous non-empty lines)
+  let paraStart = cursorLine.from;
+  let paraEnd = cursorLine.to;
+  let ln = cursorLine.number;
+  while (ln > 1 && doc.line(ln - 1).text.trim() !== '') {
+    ln--;
+    paraStart = doc.line(ln).from;
+  }
+  ln = cursorLine.number;
+  while (ln < doc.lines && doc.line(ln + 1).text.trim() !== '') {
+    ln++;
+    paraEnd = doc.line(ln).to;
+  }
 
-  if (intlWithSeg?.Segmenter) {
+  const paraText = doc.sliceString(paraStart, paraEnd);
+  const col = cursorPos - paraStart;
+
+  // Try cached Intl.Segmenter
+  if (_sentenceSegmenter) {
     try {
-      const segmenter = new intlWithSeg.Segmenter([], {
-        granularity: 'sentence',
-      });
-      const segments = segmenter.segment(text);
-      let result = { from: 0, to: text.length };
+      const segments = _sentenceSegmenter.segment(paraText);
+      let result = { from: 0, to: paraText.length };
       let segResult = segments.next();
 
       while (!segResult.done) {
@@ -138,21 +173,21 @@ function getSentenceBounds(
       }
 
       return {
-        start: line.from + result.from,
-        end: line.from + result.to,
+        start: paraStart + result.from,
+        end: paraStart + result.to,
       };
     } catch (_e) {
       // Fall through to regex fallback
     }
   }
 
-  // Fallback: regex-based sentence detection
+  // Fallback: regex-based sentence detection across paragraph
   let start = 0;
-  let end = text.length;
+  let end = paraText.length;
   const regex = /[.!?…]{1,3}(\s|$)|[。！？…]+/g;
   let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = regex.exec(paraText)) !== null) {
     const delimEnd = match.index + match[0].length;
     if (delimEnd <= col) {
       start = delimEnd;
@@ -163,13 +198,13 @@ function getSentenceBounds(
   }
 
   // Trim leading whitespace
-  while (start < end && (text[start] === ' ' || text[start] === '\t')) {
+  while (start < end && (paraText[start] === ' ' || paraText[start] === '\t')) {
     start++;
   }
 
   return {
-    start: line.from + start,
-    end: line.from + end,
+    start: paraStart + start,
+    end: paraStart + end,
   };
 }
 
@@ -220,6 +255,11 @@ class FocusModePlugin {
   }
 
   private createOverlays(): void {
+    // Guard against duplicate overlay creation
+    if (this.overlayTop || this.overlayBottom) {
+      this.destroyOverlays();
+    }
+
     const scroller = this.view.scrollDOM;
 
     this.overlayTop = document.createElement('div');

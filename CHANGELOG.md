@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-15
+
+### Fixed
+
+#### Phase 1: Critical Bug Fixes (Stability)
+- Reset-to-defaults no longer creates duplicate Compartments (state corruption)
+- Typewriter scroll now reads current state in rAF callback (fixes stale cursor position)
+- Layout-change handler debounced via requestAnimationFrame (performance cliff)
+- Focus mode overlay guard prevents duplicate DOM nodes
+- Zen mode timeout race condition fixed (clearTimeout on disable/destroy)
+- Wheel/touchmove event listeners use AbortController (memory leak prevention)
+- `onunload()` uses optional chaining for all modules (null pointer prevention)
+- New `resetToDefaults()` method for clean settings reset
+
+#### Phase 2: High-Priority Polish (Professional Feel)
+- Settings validation: corrupt `data.json` values fall back to defaults with warning
+- IME composition guard: breathing cursor skips `isComposing` events (CJK input fix)
+- Sentence focus mode now scans across line boundaries (paragraph-level detection)
+- Intl.Segmenter instance cached at module level (performance)
+- Status bar tooltip shows full feature names on hover
+- Notice spam eliminated: status bar is primary feedback channel
+
+#### Phase 3: Medium-Priority Polish (Compatibility & Edge Cases)
+- `text-autospace` wrapped in `@supports` guard
+- `text-box-trim` wrapped in `@supports` guard with margin fallback
+- Focus overlay background has `#fff` fallback for transparent themes
+- Container query breakpoints use `em` units (zoom-level adaptive)
+- Facet combiner uses `reduce()` instead of spread (stack safety)
+- `scrollBehavior` cleanup wrapped in try/finally
+- Heading detection excludes YAML frontmatter comments
+- Zen opacity validated (finite number 0-1, clamped)
+- Settings tab method dispatch has `typeof` guard
+
+### Changed
+- Status bar is primary feedback channel (Notice removed from toggles, kept for errors/reset)
+- Tab key removed from breathing cursor trigger list
+
 ## [1.1.0] - 2026-06-14
 
 ### Added

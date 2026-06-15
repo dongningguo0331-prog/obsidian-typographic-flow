@@ -10,9 +10,15 @@ const ZEN_ENTERING_CLASS = 'tf-zen-entering';
 
 export class ZenModeManager {
   private cssNode: HTMLStyleElement | null = null;
+  private _enterTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Inject or update the --zen-opacity CSS variable into <head>. */
   setOpacity(opacity: number): void {
+    // Validate: must be a finite number between 0 and 1
+    if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+      console.warn(`[TypographicFlow] Invalid zen opacity: ${opacity}, clamping to 0-1`);
+      opacity = Math.max(0, Math.min(1, opacity || 0.25));
+    }
     if (!this.cssNode) {
       this.cssNode = document.createElement('style');
       this.cssNode.id = 'plugin-tf-zen-opacity';
@@ -25,24 +31,29 @@ export class ZenModeManager {
   enable(): void {
     document.body.classList.add(ZEN_BODY_CLASS);
     document.body.classList.add(ZEN_ENTERING_CLASS);
-    setTimeout(() => {
+    if (this._enterTimer) clearTimeout(this._enterTimer);
+    this._enterTimer = setTimeout(() => {
       document.body.classList.remove(ZEN_ENTERING_CLASS);
+      this._enterTimer = null;
     }, 350);
   }
 
   /** Disable Zen Mode: remove body class. */
   disable(): void {
+    if (this._enterTimer) {
+      clearTimeout(this._enterTimer);
+      this._enterTimer = null;
+    }
     document.body.classList.remove(ZEN_BODY_CLASS);
     document.body.classList.remove(ZEN_ENTERING_CLASS);
   }
 
   /** Clean up injected style node. */
   destroy(): void {
+    this.disable();
     if (this.cssNode) {
       this.cssNode.remove();
       this.cssNode = null;
     }
-    document.body.classList.remove(ZEN_BODY_CLASS);
-    document.body.classList.remove(ZEN_ENTERING_CLASS);
   }
 }
