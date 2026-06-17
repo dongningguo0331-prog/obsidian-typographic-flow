@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-17
+
+### Added
+
+#### Fullscreen Writing Mode
+- Hide all UI elements (sidebar, titlebar, status bar, tabs) for distraction-free writing
+- Exit button (top-left arrow) + F11 toggle + Esc exit + command palette toggle
+- Vignette overlay effect (radial / box / none styles)
+- Save and restore layout state on enable/disable
+
+#### Cursor Position Restore
+- Per-file cursor and scroll position persistence via CM6 ViewPlugin
+- Restores on file-open event (typewriter-mode pattern)
+- File rename/delete tracking
+- Settings: `cursorRestoreEnabled` (default: ON)
+
+#### Focus Opacity Control
+- New `focusOpacity` setting (slider, default: 0.25, aligned with Zen opacity)
+- Line-mode overlay now uses `--focus-opacity` CSS variable (was hardcoded 0.4)
+
+#### Embed Block Preservation
+- Math formulas, callouts, and tables never dimmed in Zen/Focus mode
+- Aligns with Typewriter Mode and iA Writer behavior
+
+### Fixed
+
+- `toggleBreathe` now applies `setDuration`/`setMinOpacity` when enabling (CSS variables were stale)
+- Empty `finally` block in scroll centering now correctly handles dispatch errors
+- 5 boolean settings keys added to validation array (`fullscreenEnabled`, `fullscreenShowHeader`, `fullscreenShowStatusBar`, `fullscreenShowVignette`, `cursorRestoreEnabled`)
+- Focus mode frontmatter scan cached via `WeakMap` (O(n²) → O(n))
+- `scrollend` listener cleanup via `AbortController.signal` (memory leak prevention)
+- `container-type: inline-size` replaced with `@media` queries (fixes table layout in narrow viewports)
+- Table narrow-viewport responsive protection (`min-width`, `word-break`, `overflow-x`)
+- `<mark>` element line-height inheritance for highlight rendering in tables
+
+### Changed
+- Zen + Focus coexistence: embed blocks no longer dimmed (math/callout/tables stay visible)
+- Focus opacity default aligned to 0.25 (was hardcoded 0.5)
+
 ## [1.2.0] - 2026-06-15
 
 ### Fixed

@@ -66,8 +66,20 @@ Subtle visual enhancements that make writing feel more alive.
 
 - **Breathing cursor** — Smooth fade cycle instead of binary blink. Pauses when you're actively typing, resumes when you stop.
 - **Strikethrough animation** — Animate ~~strikethrough~~ text from left to right, like a pen crossing out words.
+- **Cursor position restore** — Remembers where you left off when reopening files. Each file stores its own cursor and scroll position.
 
 Both animations respect `prefers-reduced-motion` for accessibility.
+
+### Fullscreen Writing Mode
+
+Enter a distraction-free writing environment with a single keystroke:
+
+- **F11** to toggle fullscreen on/off
+- **Esc** to exit (only when no modal is open)
+- **Exit button** (top-left arrow) for mouse users
+- Hides sidebar, titlebar, status bar, and tab bar
+- Saves and restores your layout state on exit
+- Optional **vignette overlay** (radial, box, or none)
 
 ### Baseline Grid
 
@@ -163,6 +175,9 @@ All features can be toggled via the Command Palette (Ctrl/Cmd+P):
 | Toggle CJK Justification | Enable/disable text justification | OFF |
 | Toggle Breathing Cursor | Enable/disable breathing cursor | OFF |
 | Toggle Strikethrough Animation | Enable/disable strikethrough animation | OFF |
+| Toggle Fullscreen Writing Mode | Enter/exit fullscreen (F11) | OFF |
+| Toggle Fullscreen Header | Show/hide titlebar in fullscreen | OFF |
+| Toggle Fullscreen Status Bar | Show/hide status bar in fullscreen | OFF |
 
 Each toggle shows a Notice (ON/OFF toast) for feedback. The status bar shows active modes as abbreviations (e.g., `⚙ TW·Z·FL·C·G·CJK`).
 
@@ -190,11 +205,13 @@ Access settings via: Settings → Community Plugins → Typographic Flow → ⚙
 | Zen Mode | Toggle | — | OFF | Dim non-active lines |
 | Zen Opacity | Slider | 0–100% | 25% | Brightness of dimmed lines |
 | Focus Mode | Dropdown | off/line/paragraph/heading/sentence | off | Semantic focus mode |
+| Focus Dimming | Slider | 0–100% | 25% | Brightness of lines outside focus range |
 
 ### Cursor & Animation
 
 | Setting | Type | Range | Default | Description |
 |---------|------|-------|---------|-------------|
+| Restore Cursor Position | Toggle | — | ON | Remember cursor/scroll when reopening files |
 | Breathing Cursor | Toggle | — | OFF | Smooth fade cycle for cursor |
 | Breath Duration | Slider | 2–8s | 4s | Speed of one breath cycle |
 | Minimum Opacity | Slider | 0.1–0.8 | 0.4 | Lowest brightness in cycle |
@@ -215,6 +232,16 @@ Access settings via: Settings → Community Plugins → Typographic Flow → ⚙
 | CJK Prose | Toggle | — | OFF | CJK typography |
 | Justify Text | Toggle | — | OFF | CJK justification |
 | First-line Indent | Toggle | — | OFF | 2em indent (Reading View only) |
+
+### Fullscreen
+
+| Setting | Type | Range | Default | Description |
+|---------|------|-------|---------|-------------|
+| Enable Fullscreen Mode | Toggle | — | OFF | Master switch for fullscreen mode |
+| Show Header | Toggle | — | OFF | Show titlebar in fullscreen |
+| Show Status Bar | Toggle | — | OFF | Show status bar in fullscreen |
+| Vignette Effect | Toggle | — | ON | Dark edges effect in fullscreen |
+| Vignette Style | Dropdown | radial/box/none | radial | Style of vignette overlay |
 
 ### Colors
 
@@ -275,7 +302,7 @@ Available variables:
 - `--tf-lh-heading` — Heading line height (default: 32px)
 - `--tf-grid-unit` — Grid unit (default: 16px)
 - `--zen-opacity` — Zen mode dim opacity (default: 0.25)
-- `--focus-opacity` — Focus mode dim opacity (default: 0.5)
+- `--focus-opacity` — Focus mode dim opacity (default: 0.25)
 - `--tf-breathe-duration` — Breathing cursor cycle (default: 4s)
 - `--tf-breathe-min-opacity` — Breathing cursor minimum (default: 0.4)
 - `--tf-strike-duration` — Strikethrough animation duration (default: 0.35s)

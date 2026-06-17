@@ -66,8 +66,20 @@
 
 - **呼吸光标** — 平滑的淡入淡出循环，替代二值闪烁。输入时暂停，停止输入时恢复。
 - **删除线动画** — ~~删除线~~文字从左到右动画显示，像用笔划掉文字一样。
+- **光标位置恢复** — 重新打开文件时恢复上次的光标和滚动位置，每个文件独立存储。
 
 两个动画都遵循系统的 `prefers-reduced-motion` 无障碍设置。
+
+### 全屏写作模式
+
+一键进入无干扰写作环境：
+
+- **F11** 切换全屏开/关
+- **Esc** 退出（仅在无模态框时）
+- **退出按钮**（左上角 ← 图标）供鼠标用户使用
+- 隐藏侧边栏、标题栏、状态栏和标签栏
+- 退出时自动恢复之前的布局状态
+- 可选**暗角效果**（径向、方形、无）
 
 ### 基线网格
 
@@ -163,6 +175,9 @@
 | Toggle CJK Justification | 开关两端对齐 | 关 |
 | Toggle Breathing Cursor | 开关呼吸光标 | 关 |
 | Toggle Strikethrough Animation | 开关删除线动画 | 关 |
+| Toggle Fullscreen Writing Mode | 切换全屏模式（F11） | 关 |
+| Toggle Fullscreen Header | 显示/隐藏全屏标题栏 | 关 |
+| Toggle Fullscreen Status Bar | 显示/隐藏全屏状态栏 | 关 |
 
 每次切换都会显示通知（ON/OFF 提示）。状态栏显示活跃模式缩写（如 `⚙ TW·Z·FL·C·G·CJK`）。
 
@@ -190,11 +205,13 @@
 | Zen Mode / 禅模式 | 开关 | — | 关 | 调暗非活动行 |
 | Zen Opacity / 禅模式透明度 | 滑块 | 0–100% | 25% | 调暗行的亮度 |
 | Focus Mode / 聚焦模式 | 下拉 | off/line/paragraph/heading/sentence | off | 语义聚焦模式 |
+| Focus Dimming / 聚焦虚化 | 滑块 | 0–100% | 25% | 聚焦范围外行的亮度 |
 
 ### 光标与动画
 
 | 设置 | 类型 | 范围 | 默认值 | 说明 |
 |------|------|------|--------|------|
+| Restore Cursor Position / 恢复光标位置 | 开关 | — | 开 | 重新打开文件时恢复光标和滚动位置 |
 | Breathing Cursor / 呼吸光标 | 开关 | — | 关 | 光标平滑淡入淡出循环 |
 | Breath Duration / 呼吸周期 | 滑块 | 2–8s | 4s | 一个呼吸周期的速度 |
 | Minimum Opacity / 最低透明度 | 滑块 | 0.1–0.8 | 0.4 | 循环中的最低亮度 |
@@ -225,6 +242,16 @@
 | Accent Saturation / 强调色饱和度 | 滑块 | -30 到 +30 | 0 | 控制颜色强度 |
 | Background Warmth / 背景暖度 | 滑块 | -10 到 +10 | 0 | 背景色调 |
 | Text Contrast / 文字对比度 | 滑块 | -15 到 +15 | 0 | 文字深浅 |
+
+### 全屏模式
+
+| 设置 | 类型 | 范围 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| Enable Fullscreen Mode / 启用全屏模式 | 开关 | — | 关 | 全屏模式主开关 |
+| Show Header / 显示标题栏 | 开关 | — | 关 | 全屏时显示标题栏 |
+| Show Status Bar / 显示状态栏 | 开关 | — | 关 | 全屏时显示状态栏 |
+| Vignette Effect / 暗角效果 | 开关 | — | 开 | 全屏时边缘暗角 |
+| Vignette Style / 暗角样式 | 下拉 | radial/box/none | radial | 暗角效果样式 |
 
 ---
 
@@ -275,7 +302,7 @@ body.plugin-tf-grid {
 - `--tf-lh-heading` — 标题行高（默认 32px）
 - `--tf-grid-unit` — 网格模数（默认 16px）
 - `--zen-opacity` — 禅模式透明度（默认 0.25）
-- `--focus-opacity` — 聚焦模式透明度（默认 0.5）
+- `--focus-opacity` — 聚焦模式透明度（默认 0.25）
 - `--tf-breathe-duration` — 呼吸光标周期（默认 4s）
 - `--tf-breathe-min-opacity` — 呼吸光标最低透明度（默认 0.4）
 - `--tf-strike-duration` — 删除线动画时长（默认 0.35s）
