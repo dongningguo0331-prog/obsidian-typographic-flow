@@ -22,6 +22,8 @@ import {
 import { ZenModeManager } from './engine/zen-mode';
 import { BreathingCursorManager } from './engine/breathing-cursor';
 import { StrikethroughAnimManager } from './engine/strikethrough-anim';
+import { FullscreenManager, type VignetteStyle } from './engine/fullscreen';
+import { CursorRestoreManager, setCursorRestoreForViewPlugin } from './engine/cursor-restore';
 
 // ── CSS Helpers ──
 
@@ -102,10 +104,12 @@ const _booleanKeys: readonly (keyof PluginSettings)[] = [
   'zenEnabled', 'colorsEnabled', 'gridEnabled', 'gridShowLines',
   'cjkProseEnabled', 'cjkProseJustify', 'cjkProseIndent',
   'breatheEnabled', 'strikeAnimEnabled',
+  'fullscreenEnabled', 'fullscreenShowHeader', 'fullscreenShowStatusBar',
+  'fullscreenShowVignette', 'cursorRestoreEnabled',
 ];
 
 const _numberKeys: readonly (keyof PluginSettings)[] = [
-  'typewriterOffset', 'deadZone', 'zenOpacity',
+  'typewriterOffset', 'deadZone', 'zenOpacity', 'focusOpacity',
   'colorsAccentHue', 'colorsAccentSat', 'colorsBgWarmth', 'colorsTextContrast',
   'gridUnit', 'gridOffsetY', 'gridLineOpacityLight', 'gridLineOpacityDark', 'gridRadiusCoef',
   'breatheDuration', 'breatheMinOpacity', 'strikeAnimDuration',
@@ -156,6 +160,7 @@ export interface PluginSettings {
 
   // Focus
   focusMode: FocusMode;
+  focusOpacity: number;
 
   // Colors
   colorsEnabled: boolean;
@@ -187,6 +192,17 @@ export interface PluginSettings {
   strikeAnimEnabled: boolean;
   strikeAnimDuration: number;
 
+  // Fullscreen
+  fullscreenEnabled: boolean;
+  fullscreenShowHeader: boolean;
+  fullscreenShowStatusBar: boolean;
+  fullscreenShowVignette: boolean;
+  fullscreenVignetteStyle: VignetteStyle;
+
+  // Cursor Restore
+  cursorRestoreEnabled: boolean;
+  cursorPositions: Record<string, { from: number; to: number; scroll: number }>;
+
   // Schema
   settingsVersion: number;
 }
@@ -205,7 +221,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
   zenOpacity: 0.25,
 
   // Focus
-  focusMode: 'off',
+  focusMode: 'off' as FocusMode,
+  focusOpacity: 0.25,
 
   // Colors
   colorsEnabled: false,
@@ -237,6 +254,17 @@ const DEFAULT_SETTINGS: PluginSettings = {
   strikeAnimEnabled: false,
   strikeAnimDuration: 0.35,
 
+  // Fullscreen
+  fullscreenEnabled: false,
+  fullscreenShowHeader: false,
+  fullscreenShowStatusBar: false,
+  fullscreenShowVignette: true,
+  fullscreenVignetteStyle: 'radial',
+
+  // Cursor Restore
+  cursorRestoreEnabled: true,
+  cursorPositions: {},
+
   // Schema
   settingsVersion: SETTINGS_VERSION,
 };
@@ -249,6 +277,7 @@ export default class TypographicFlowPlugin extends Plugin {
   private zenMode!: ZenModeManager;
   private breathe!: BreathingCursorManager;
   private strike!: StrikethroughAnimManager;
+  private fullscreen!: FullscreenManager;
 
   private _compartments!: {
     typewriter: Compartment;
@@ -262,6 +291,7 @@ export default class TypographicFlowPlugin extends Plugin {
 
   private _layoutChangeHandler: (() => void) | null = null;
   private _statusBarItem: HTMLElement | null = null;
+  private cursorRestore!: CursorRestoreManager;
 
   // ---- Lifecycle ----
 
@@ -280,6 +310,10 @@ export default class TypographicFlowPlugin extends Plugin {
     this.zenMode = new ZenModeManager();
     this.breathe = new BreathingCursorManager();
     this.strike = new StrikethroughAnimManager();
+    this.fullscreen = new FullscreenManager(this.app);
+    this.fullscreen.onExit = () => this.toggleFullscreen(false);
+    this.fullscreen.onToggle = () => this.toggleFullscreen();
+    this.cursorRestore = new CursorRestoreManager(this.app);
 
     try {
       await this._initPlugin();
@@ -299,6 +333,15 @@ export default class TypographicFlowPlugin extends Plugin {
         migrated as unknown as Record<string, unknown>,
       ) as unknown as PluginSettings,
     );
+
+    // Cursor position restore — MUST be before typewriter so ViewPlugin can access it
+    if (this.settings.cursorRestoreEnabled) {
+      this.cursorRestore.enable(
+        this.settings.cursorPositions,
+        () => this.saveData(this.settings),
+      );
+      setCursorRestoreForViewPlugin(this.cursorRestore);
+    }
 
     // Reconfigure compartments (do NOT recreate them)
     if (this.settings.enabled) {
@@ -328,12 +371,24 @@ export default class TypographicFlowPlugin extends Plugin {
       document.body.classList.add('plugin-tf-focus');
       this.dispatchFocusExtensions(this.settings.focusMode);
     }
+    // Always set focus opacity CSS variable (even when mode is off, for consistency)
+    setBodyCSS('--focus-opacity', String(this.settings.focusOpacity));
 
     if (this.settings.colorsEnabled) this.enableColors();
     if (this.settings.gridEnabled) this.enableGrid();
     if (this.settings.cjkProseEnabled) this.enableCjkProse();
     if (this.settings.cjkProseJustify) this.enableCjkJustify();
     if (this.settings.cjkProseIndent) this.enableCjkIndent();
+
+    // Fullscreen mode
+    if (this.settings.fullscreenEnabled) {
+      this.fullscreen.enable();
+      this.fullscreen.setShowHeader(this.settings.fullscreenShowHeader);
+      this.fullscreen.setShowStatusBar(this.settings.fullscreenShowStatusBar);
+      if (this.settings.fullscreenShowVignette) {
+        this.fullscreen.setVignetteStyle(this.settings.fullscreenVignetteStyle);
+      }
+    }
 
     // Recalculate typewriter offset when layout changes (sidebar toggle, split pane, etc.)
     // Debounced via requestAnimationFrame to avoid rebuilding extensions on every event.
@@ -364,6 +419,7 @@ export default class TypographicFlowPlugin extends Plugin {
     this.zenMode?.disable();
     this.breathe?.disable();
     this.strike?.disable();
+    this.fullscreen?.disable();
     document.body.classList.remove('plugin-tf-focus');
     this.disableColors();
     this.disableGrid();
@@ -384,6 +440,8 @@ export default class TypographicFlowPlugin extends Plugin {
     this._layoutChangeHandler = null;
     this._statusBarItem?.remove();
     this._statusBarItem = null;
+    this.fullscreen?.destroy();
+    this.cursorRestore?.destroy();
     this.zenMode?.disable();
     this.zenMode?.destroy();
     this.breathe?.destroy();
@@ -474,6 +532,24 @@ export default class TypographicFlowPlugin extends Plugin {
       id: 'toggle-strikethrough-anim',
       name: 'Toggle Strikethrough Animation On/Off',
       callback: () => this.toggleStrikeAnim(),
+    });
+
+    this.addCommand({
+      id: 'toggle-fullscreen-mode',
+      name: 'Toggle Fullscreen Writing Mode',
+      callback: () => this.toggleFullscreen(),
+    });
+
+    this.addCommand({
+      id: 'toggle-fullscreen-header',
+      name: 'Toggle Fullscreen Header',
+      callback: () => this.toggleFullscreenHeader(),
+    });
+
+    this.addCommand({
+      id: 'toggle-fullscreen-status-bar',
+      name: 'Toggle Fullscreen Status Bar',
+      callback: () => this.toggleFullscreenStatusBar(),
     });
   }
 
@@ -658,13 +734,23 @@ export default class TypographicFlowPlugin extends Plugin {
     this.saveData(this.settings);
   }
 
+  changeFocusOpacity(v: number): void {
+    this._applySetting('focusOpacity', v, '--focus-opacity', 'focusMode' as keyof PluginSettings);
+  }
+
   // ---- Breathing Cursor ----
 
   toggleBreathe(newValue: boolean | null = null): void {
     if (newValue === null) newValue = !this.settings.breatheEnabled;
     this.settings.breatheEnabled = newValue;
     this._notify('Breathing Cursor', newValue);
-    newValue ? this.breathe.enable() : this.breathe.disable();
+    if (newValue) {
+      this.breathe.setDuration(this.settings.breatheDuration);
+      this.breathe.setMinOpacity(this.settings.breatheMinOpacity);
+      this.breathe.enable();
+    } else {
+      this.breathe.disable();
+    }
     this.saveData(this.settings);
   }
 
@@ -690,6 +776,77 @@ export default class TypographicFlowPlugin extends Plugin {
   changeStrikeAnimDuration(v: number): void {
     this.settings.strikeAnimDuration = v;
     if (this.settings.strikeAnimEnabled) this.strike.setDuration(v);
+    this.saveData(this.settings);
+  }
+
+  // ---- Fullscreen Mode ----
+
+  toggleFullscreen(newValue: boolean | null = null): void {
+    if (newValue === null) newValue = !this.settings.fullscreenEnabled;
+    this.settings.fullscreenEnabled = newValue;
+    this._notify('Fullscreen', newValue);
+    if (newValue) {
+      this.fullscreen.enable();
+      this.fullscreen.setShowHeader(this.settings.fullscreenShowHeader);
+      this.fullscreen.setShowStatusBar(this.settings.fullscreenShowStatusBar);
+      if (this.settings.fullscreenShowVignette) {
+        this.fullscreen.setVignetteStyle(this.settings.fullscreenVignetteStyle);
+      }
+    } else {
+      this.fullscreen.disable();
+    }
+    this.saveData(this.settings);
+  }
+
+  toggleFullscreenHeader(newValue: boolean | null = null): void {
+    if (newValue === null) newValue = !this.settings.fullscreenShowHeader;
+    this.settings.fullscreenShowHeader = newValue;
+    this.fullscreen.setShowHeader(newValue);
+    this.saveData(this.settings);
+  }
+
+  toggleFullscreenStatusBar(newValue: boolean | null = null): void {
+    if (newValue === null) newValue = !this.settings.fullscreenShowStatusBar;
+    this.settings.fullscreenShowStatusBar = newValue;
+    this.fullscreen.setShowStatusBar(newValue);
+    this.saveData(this.settings);
+  }
+
+  toggleFullscreenVignette(newValue: boolean | null = null): void {
+    if (newValue === null) newValue = !this.settings.fullscreenShowVignette;
+    this.settings.fullscreenShowVignette = newValue;
+    if (newValue) {
+      this.fullscreen.setVignetteStyle(this.settings.fullscreenVignetteStyle);
+    } else {
+      this.fullscreen.setVignetteStyle('none');
+    }
+    this.saveData(this.settings);
+  }
+
+  changeFullscreenVignetteStyle(v: VignetteStyle): void {
+    this.settings.fullscreenVignetteStyle = v;
+    if (this.settings.fullscreenShowVignette) {
+      this.fullscreen.setVignetteStyle(v);
+    }
+    this.saveData(this.settings);
+  }
+
+  // ---- Cursor Restore ----
+
+  toggleCursorRestore(newValue: boolean | null = null): void {
+    if (newValue === null) newValue = !this.settings.cursorRestoreEnabled;
+    this.settings.cursorRestoreEnabled = newValue;
+    this._notify('Cursor Restore', newValue);
+    if (newValue) {
+      this.cursorRestore.enable(
+        this.settings.cursorPositions,
+        () => this.saveData(this.settings),
+      );
+      setCursorRestoreForViewPlugin(this.cursorRestore);
+    } else {
+      this.cursorRestore.disable();
+      setCursorRestoreForViewPlugin(null);
+    }
     this.saveData(this.settings);
   }
 
@@ -1102,6 +1259,19 @@ class TypographicFlowSettingTab extends PluginSettingTab {
       },
       method: 'changeFocusMode',
     },
+    {
+      section: 'Focus & Zen / 专注模式',
+      name: 'Focus Dimming / 聚焦虚化',
+      desc: 'Opacity of dimmed lines outside focus range (lower = darker)',
+      key: 'focusOpacity',
+      type: 'slider',
+      min: 0,
+      max: 100,
+      step: 5,
+      toSlider: (v) => v * 100,
+      fromSlider: (v) => v / 100,
+      method: 'changeFocusOpacity',
+    },
 
     // ── Cursor & Animation ──
     {
@@ -1152,6 +1322,14 @@ class TypographicFlowSettingTab extends PluginSettingTab {
       max: 0.8,
       step: 0.05,
       method: 'changeStrikeAnimDuration',
+    },
+    {
+      section: 'Cursor & Animation / 光标与动画',
+      name: 'Restore Cursor Position / 恢复光标位置',
+      desc: 'Remember cursor and scroll position when reopening files',
+      key: 'cursorRestoreEnabled',
+      type: 'toggle',
+      method: 'toggleCursorRestore',
     },
 
     // ── Typography ──
@@ -1303,6 +1481,53 @@ class TypographicFlowSettingTab extends PluginSettingTab {
       max: 15,
       step: 1,
       method: 'changeColorsTextContrast',
+    },
+
+    // ── Fullscreen ──
+    {
+      section: 'Fullscreen / 全屏模式',
+      name: 'Enable Fullscreen Mode / 启用全屏模式',
+      desc: 'Hide all UI elements for distraction-free writing',
+      key: 'fullscreenEnabled',
+      type: 'toggle',
+      method: 'toggleFullscreen',
+    },
+    {
+      section: 'Fullscreen / 全屏模式',
+      name: 'Show Header / 显示标题栏',
+      desc: 'Show title bar in fullscreen mode',
+      key: 'fullscreenShowHeader',
+      type: 'toggle',
+      method: 'toggleFullscreenHeader',
+    },
+    {
+      section: 'Fullscreen / 全屏模式',
+      name: 'Show Status Bar / 显示状态栏',
+      desc: 'Show status bar in fullscreen mode',
+      key: 'fullscreenShowStatusBar',
+      type: 'toggle',
+      method: 'toggleFullscreenStatusBar',
+    },
+    {
+      section: 'Fullscreen / 全屏模式',
+      name: 'Vignette Effect / 暗角效果',
+      desc: 'Dark edges effect in fullscreen mode',
+      key: 'fullscreenShowVignette',
+      type: 'toggle',
+      method: 'toggleFullscreenVignette',
+    },
+    {
+      section: 'Fullscreen / 全屏模式',
+      name: 'Vignette Style / 暗角样式',
+      desc: 'Style of the vignette overlay',
+      key: 'fullscreenVignetteStyle',
+      type: 'dropdown',
+      options: {
+        radial: 'Radial (default)',
+        box: 'Box shadow',
+        none: 'None',
+      },
+      method: 'changeFullscreenVignetteStyle',
     },
   ];
 }

@@ -12,6 +12,8 @@
 import { Facet, Transaction } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
 
+import { getCursorRestoreForViewPlugin } from './cursor-restore';
+
 // ── Recovery timeout for scroll suspension (ms) ──
 const SUSPEND_RECOVERY_MS = 3000;
 
@@ -111,9 +113,21 @@ function computeEffectiveOffset(
 // ── Padding Plugin ──
 
 class TypewriterScrollPaddingPlugin {
-  constructor(private view: EditorView) {}
+  constructor(private view: EditorView) {
+    // Restore cursor position on editor load
+    getCursorRestoreForViewPlugin()?.restoreOnLoad(view);
+  }
 
   update(update: import('@codemirror/view').ViewUpdate): void {
+    // Save cursor position on every transaction
+    const cr = getCursorRestoreForViewPlugin();
+    if (cr) {
+      cr.saveCursor(
+        update.view.state.selection.main,
+        update.view.scrollDOM.scrollTop,
+      );
+    }
+
     // Ignore pure pointer selections (click-to-place-cursor)
     const userEvents = update.transactions
       .map((tr) => tr.annotation(Transaction.userEvent))
@@ -313,7 +327,8 @@ class TypewriterScrollPlugin {
         const effect = EditorView.scrollIntoView(head, { y: 'start', yMargin: offset });
         view.dispatch({ effects: [effect] });
       } finally {
-        // Always ensure scrollBehavior is restored, even if dispatch throws
+        // No-op: scrollend or fallback timer below handles cleanup.
+        // If dispatch threw, isScrolling stays true briefly, which is harmless.
       }
 
       if (useSmooth) {
@@ -326,6 +341,7 @@ class TypewriterScrollPlugin {
         };
         view.scrollDOM.addEventListener('scrollend', onScrollEnd, {
           once: false,
+          signal: self._abortController.signal,
         });
 
         const fallbackTimer = setTimeout(() => {

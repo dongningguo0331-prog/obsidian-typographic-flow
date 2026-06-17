@@ -38,11 +38,6 @@ body.plugin-tf-zen .cm-editor.cm-focused .cm-line:not(.cm-active) {
   opacity: var(--zen-opacity, 0.25);
 }
 
-/* ===== Zen Mode: Embed Block Preservation ===== */
-body.plugin-tf-zen .cm-editor.cm-focused .cm-embed-block:not(:has(.cm-active)) {
-  opacity: var(--zen-opacity, 0.25);
-}
-
 /* ===== Zen Mode: Code & Quote Blocks ===== */
 body.plugin-tf-zen .cm-editor.cm-focused .HyperMD-codeblock:not(.cm-active) {
   opacity: var(--zen-opacity, 0.25);
@@ -75,9 +70,6 @@ body.tf-zen-entering .cm-editor.cm-focused .cm-line.cm-active {
 body.plugin-tf-focus .cm-line.tf-focus-dim {
   opacity: var(--focus-opacity, 0.5);
 }
-body.plugin-tf-focus .cm-embed-block.tf-focus-dim {
-  opacity: var(--focus-opacity, 0.5);
-}
 body.plugin-tf-focus .HyperMD-codeblock.tf-focus-dim,
 body.plugin-tf-focus .HyperMD-quote.tf-focus-dim {
   opacity: var(--focus-opacity, 0.5);
@@ -95,14 +87,11 @@ body.plugin-tf-focus .HyperMD-quote.tf-focus-dim {
   pointer-events: none;
   z-index: 1;
   background: var(--background-primary, #fff);
-  opacity: 0.4;
+  opacity: var(--focus-opacity, 0.25);
 }
 
 /* ===== Zen + Focus Coexistence: Three-layer visual gradient ===== */
 body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .cm-line.tf-focus-dim {
-  opacity: var(--focus-opacity, 0.5);
-}
-body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .cm-embed-block.tf-focus-dim {
   opacity: var(--focus-opacity, 0.5);
 }
 body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .HyperMD-codeblock.tf-focus-dim,
@@ -112,6 +101,8 @@ body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .HyperMD-quote.tf-focus
 body.plugin-tf-focus.plugin-tf-zen .cm-editor.cm-focused .cm-line:not(.cm-active):not(.tf-focus-dim) {
   opacity: calc((1 + var(--zen-opacity, 0.25)) / 2);
 }
+
+/* ===== Embed blocks: never dimmed (math, tables, callouts are interactive) ===== */
 
 /* ==========================================================
    Phase B: Reading Colors Module (清雅阅读配色)
@@ -447,12 +438,12 @@ body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-line:is(.HyperMD-header-4,
   line-height: var(--lh-normal) !important;
 }
 
-body.plugin-tf-grid .markdown-rendered :is(p, blockquote, ul, ol) {
+body.plugin-tf-grid .markdown-rendered :is(p, blockquote, ul, ol):not(table :is(p, blockquote, ul, ol)) {
   line-height: var(--lh-normal) !important;
   margin-block-start: 0 !important; margin-block-end: calc(var(--lh-normal) - 1em) !important;
 }
 @supports (text-box-trim: both) {
-  body.plugin-tf-grid .markdown-rendered :is(p, blockquote, ul, ol) {
+  body.plugin-tf-grid .markdown-rendered :is(p, blockquote, ul, ol):not(table :is(p, blockquote, ul, ol)) {
     text-box-trim: both; text-box-edge: ideographic ideographic;
   }
 }
@@ -524,6 +515,17 @@ body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-inline-code {
   vertical-align: baseline !important; line-height: 1 !important;
   padding-block: 2px !important; margin-block: -2px !important; position: relative;
 }
+body.plugin-tf-grid .markdown-rendered mark {
+  line-height: inherit !important;
+  padding-block: 1px !important;
+  margin-block: 0 !important;
+  position: relative;
+  border-radius: 2px;
+}
+body.plugin-tf-grid .markdown-rendered :is(td, th) mark {
+  line-height: inherit !important;
+  padding-block: 0 !important; margin-block: 0 !important; position: static !important;
+}
 body.plugin-tf-grid .markdown-rendered li::marker,
 body.plugin-tf-grid .markdown-rendered .list-bullet { line-height: 0 !important; }
 body.plugin-tf-grid .markdown-rendered sup, body.plugin-tf-grid .markdown-rendered sub,
@@ -568,6 +570,11 @@ body.plugin-tf-grid .markdown-rendered :is(table th, table td) {
   line-height: calc(var(--grid-unit) * 2) !important;
   padding-block-start: calc(var(--grid-unit) * 0.5) !important;
   padding-block-end: calc(var(--grid-unit) * 0.5 - var(--grid-border-w)) !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+body.plugin-tf-grid .markdown-rendered table {
+  overflow-x: auto;
 }
 
 /* ── 七、MathJax ── */
@@ -613,11 +620,10 @@ body.plugin-tf-grid .metadata-container > :first-child { min-height: calc(var(--
   }
 }
 
-/* ── 十、容器响应式 ── */
-body.plugin-tf-grid .cm-scroller, body.plugin-tf-grid .markdown-reading-view {
-  container-type: inline-size; container-name: ob-content;
-}
-@container ob-content (max-width: 30em) {
+/* ── 十、响应式 ── */
+/* Note: Using @media instead of @container to avoid container-type: inline-size
+   breaking table layout in narrow viewports. */
+@media (max-width: 30em) {
   body.plugin-tf-grid :is(.markdown-source-view, .markdown-rendered) {
     --grid-unit: 12px; --grid-radius: calc(var(--grid-unit) * var(--grid-radius-coef));
   }
@@ -634,7 +640,7 @@ body.plugin-tf-grid .cm-scroller, body.plugin-tf-grid .markdown-reading-view {
     padding-block-end: calc(var(--grid-unit) * 0.3 - var(--grid-border-w)) !important;
   }
 }
-@container ob-content (max-width: 22em) {
+@media (max-width: 22em) {
   body.plugin-tf-grid :is(.markdown-source-view, .markdown-rendered) { --grid-unit: 11px; }
 }
 
@@ -877,4 +883,115 @@ body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-hmd-internal-link {
   opacity: 0.7;
   letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================
+   Fullscreen Writing Mode
+   Controlled by: body.plugin-tf-fullscreen toggle
+   Sub-classes: .tf-fullscreen-show-header, .tf-fullscreen-show-status-bar
+   Workspace: .tf-maximized on workspace.containerEl (hides ribbon)
+   ========================================================== */
+
+/* ── Hide sidebars, tabs, ribbon ── */
+body.plugin-tf-fullscreen .sidebar,
+body.plugin-tf-fullscreen .workspace-tab-header-container,
+body.plugin-tf-fullscreen .workspace-ribbon,
+body.plugin-tf-fullscreen .side-dock {
+  display: none !important;
+}
+
+/* ── Hide ribbon via workspace container class (fallback) ── */
+.tf-maximized .workspace-ribbon,
+.tf-maximized .side-dock {
+  display: none !important;
+}
+
+/* ── Hide titlebar (default) ── */
+body.plugin-tf-fullscreen .titlebar {
+  display: none !important;
+}
+/* Show titlebar when sub-class is set */
+body.plugin-tf-fullscreen.tf-fullscreen-show-header .titlebar {
+  display: flex !important;
+}
+
+/* ── Hide status bar (default) ── */
+body.plugin-tf-fullscreen .status-bar {
+  display: none !important;
+}
+/* Show status bar when sub-class is set */
+body.plugin-tf-fullscreen.tf-fullscreen-show-status-bar .status-bar {
+  display: flex !important;
+}
+
+/* ── Hide non-active splits ── */
+body.plugin-tf-fullscreen .workspace-split:not(:has(.workspace-leaf.mod-active)) {
+  display: none !important;
+}
+
+/* ── Editor fills the entire viewport ── */
+body.plugin-tf-fullscreen .workspace.mod-root {
+  padding: 0;
+}
+
+/* ── Vignette overlay ── */
+.tf-fullscreen-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.tf-fullscreen-vignette.style-radial {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(0, 0, 0, 0.15) 100%
+  );
+}
+
+.tf-fullscreen-vignette.style-box {
+  background: none;
+  box-shadow: inset 0 0 150px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Floating exit button ── */
+.tf-fullscreen-exit-btn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 100;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.plugin-tf-fullscreen:hover .tf-fullscreen-exit-btn {
+  opacity: 0.6;
+}
+
+.tf-fullscreen-exit-btn:hover {
+  opacity: 1 !important;
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+/* ── Entry/exit transition ── */
+body.plugin-tf-fullscreen .workspace.mod-root,
+body.plugin-tf-fullscreen .sidebar,
+body.plugin-tf-fullscreen .titlebar,
+body.plugin-tf-fullscreen .status-bar,
+body.plugin-tf-fullscreen .ribbon,
+body.plugin-tf-fullscreen .workspace-tab-header-container {
+  transition: display 0.2s allow-discrete;
 }

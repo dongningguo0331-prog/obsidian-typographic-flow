@@ -70,13 +70,20 @@ function isInsideFrontmatter(doc: Text, lineNum: number): boolean {
   // YAML frontmatter: first line must be '---', closed by next '---'
   if (lineNum <= 1) return false;
   if (doc.line(1).text.trim() !== '---') return false;
+  // Cache the closing line per document to avoid O(n) scan on every call
+  const cached = _fmEndCache.get(doc);
+  if (cached !== undefined) return lineNum <= cached;
   for (let i = 2; i <= doc.lines; i++) {
     if (doc.line(i).text.trim() === '---') {
+      _fmEndCache.set(doc, i);
       return lineNum <= i;
     }
   }
-  return false; // unclosed frontmatter — treat as not inside
+  // No closing --- found, cache as 0 (no frontmatter region)
+  _fmEndCache.set(doc, 0);
+  return false;
 }
+const _fmEndCache = new WeakMap<Text, number>();
 
 function getParagraphBounds(
   doc: Text,
