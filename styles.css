@@ -384,7 +384,6 @@ body.plugin-tf-grid {
   --grid-radius: calc(var(--grid-unit) * var(--grid-radius-coef));
   --grid-line-opacity-light: 0.045;
   --grid-line-opacity-dark: 0.04;
-  --list-indent: calc(var(--grid-unit) * 2);
   --mask-fade-y: var(--lh-normal);
   --mask-fade-x: calc(var(--grid-unit) * 4 + 4px);
 }
@@ -526,8 +525,6 @@ body.plugin-tf-grid .markdown-rendered :is(td, th) mark {
   line-height: inherit !important;
   padding-block: 0 !important; margin-block: 0 !important; position: static !important;
 }
-body.plugin-tf-grid .markdown-rendered li::marker,
-body.plugin-tf-grid .markdown-rendered .list-bullet { line-height: 0 !important; }
 body.plugin-tf-grid .markdown-rendered sup, body.plugin-tf-grid .markdown-rendered sub,
 body.plugin-tf-grid .markdown-source-view.mod-cm6 sup, body.plugin-tf-grid .markdown-source-view.mod-cm6 sub {
   line-height: 0 !important; margin-block: -1em !important;
@@ -535,6 +532,21 @@ body.plugin-tf-grid .markdown-source-view.mod-cm6 sup, body.plugin-tf-grid .mark
 }
 body.plugin-tf-grid .markdown-rendered sup, body.plugin-tf-grid .markdown-source-view.mod-cm6 sup { top: -0.4em !important; }
 body.plugin-tf-grid .markdown-rendered sub, body.plugin-tf-grid .markdown-source-view.mod-cm6 sub { top: 0.25em !important; }
+
+/* ── 列表引导线外观 ── */
+/* Guide line appearance (Grid module, independent of Colors) */
+body.plugin-tf-grid.theme-light .markdown-source-view.mod-cm6 .cm-indent::before,
+body.plugin-tf-grid.theme-light .markdown-rendered.show-indentation-guide li > ul::before,
+body.plugin-tf-grid.theme-light .markdown-rendered.show-indentation-guide li > ol::before {
+  border-left-color: oklch(30% 0.01 260 / 0.12);
+  border-left-width: 1px;
+}
+body.plugin-tf-grid.theme-dark .markdown-source-view.mod-cm6 .cm-indent::before,
+body.plugin-tf-grid.theme-dark .markdown-rendered.show-indentation-guide li > ul::before,
+body.plugin-tf-grid.theme-dark .markdown-rendered.show-indentation-guide li > ol::before {
+  border-left-color: oklch(85% 0.008 260 / 0.10);
+  border-left-width: 1px;
+}
 
 /* ── 六、异构块级组件隔离 ── */
 body.plugin-tf-grid .markdown-rendered :is(pre, .callout, img) {
@@ -642,6 +654,27 @@ body.plugin-tf-grid .metadata-container > :first-child { min-height: calc(var(--
 }
 @media (max-width: 22em) {
   body.plugin-tf-grid :is(.markdown-source-view, .markdown-rendered) { --grid-unit: 11px; }
+}
+
+/* ── Canvas 排除：Grid 模块排版规则不适用于白板节点 ── */
+body.plugin-tf-grid .canvas-node-content .markdown-rendered :is(p, blockquote, ul, ol) {
+  line-height: revert !important;
+  margin-block-start: revert !important;
+  margin-block-end: revert !important;
+}
+body.plugin-tf-grid .canvas-node-content .markdown-rendered :is(h1, h2, h3) {
+  line-height: revert !important;
+  margin-block-start: revert !important;
+  margin-block-end: revert !important;
+}
+body.plugin-tf-grid .canvas-node-content .markdown-rendered :is(h4, h5, h6) {
+  line-height: revert !important;
+  margin-block-start: revert !important;
+  margin-block-end: revert !important;
+}
+body.plugin-tf-grid .canvas-node-content .markdown-rendered li {
+  margin-block: revert !important;
+  padding-block: revert !important;
 }
 
 /* ── 十一、WCAG 2.1 AA ── */
