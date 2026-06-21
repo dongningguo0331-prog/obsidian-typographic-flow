@@ -1415,7 +1415,7 @@ class TypographicFlowSettingTab extends PluginSettingTab {
     {
       section: 'Typography / 排版',
       name: 'Justify Text / 两端对齐',
-      desc: 'Justify text ⚠ May cause uneven spacing in Live Preview',
+      desc: 'Justify text ⚠ May cause uneven spacing. Not compatible with long inline math ($...$)',
       key: 'cjkProseJustify',
       type: 'toggle',
       method: 'toggleCjkJustify',

@@ -590,14 +590,22 @@ body.plugin-tf-grid .markdown-rendered table {
 }
 
 /* ── 七、MathJax ── */
-body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math {
-  display: inline-block !important; height: var(--grid-unit) !important;
-  max-height: var(--grid-unit) !important; line-height: 0 !important;
-}
+/* Inline math: allow natural height, horizontal scroll for overflow */
 body.plugin-tf-grid .markdown-rendered .math.math-inline mjx-container,
 body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math mjx-container {
-  display: inline-block !important; height: var(--grid-unit) !important;
-  line-height: 0 !important; overflow: visible !important; vertical-align: middle !important;
+  display: inline-block !important;
+  height: auto !important;
+  max-height: none !important;
+  line-height: 1 !important;
+  overflow-x: auto !important;
+  max-width: 100%;
+  vertical-align: middle !important;
+}
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math {
+  display: inline-block !important;
+  height: auto !important;
+  max-height: none !important;
+  line-height: 1 !important;
 }
 body.plugin-tf-grid :is(.markdown-rendered .math-block, .markdown-source-view.mod-cm6 .cm-math.cm-block-math, .math.math-block) {
   background-color: color-mix(in srgb, var(--code-background, var(--grid-bfc-bg)) 60%, transparent);
@@ -770,27 +778,22 @@ body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-line {
 }
 
 /* ── 两端对齐（需 sub-toggle plugin-tf-cjk-justify，默认关闭） ── */
-body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-rendered :is(p, li, blockquote, td, th) {
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-rendered :is(p, li, blockquote, td, th),
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm-line {
   text-align: justify;
-  -webkit-text-justify: inter-ideograph;
-  text-justify: inter-ideograph;
   text-align-last: left;
   hyphens: auto;
 }
-body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm-line {
-  text-align: justify;
-  -webkit-text-justify: inter-ideograph;
-  text-justify: inter-ideograph;
-  hyphens: auto;
-}
-/* Exclude: code blocks, headings, hr */
+/* Exclude: code blocks, headings, hr, math */
 body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm-line:is(
   .HyperMD-header,
   .HyperMD-codeblock,
   .HyperMD-hr
-) {
-  text-align: left;
-  hyphens: none;
+),
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm-line:has(.cm-math),
+body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-rendered :is(p, li, td, th):has(.math.math-inline) {
+  text-align: left !important;
+  hyphens: none !important;
 }
 
 /* ── 行内代码断词（仅 justify 模式下需要） ── */

@@ -50,16 +50,26 @@ interface TypographyConstants {
 }
 
 const _typoCache = new WeakMap<Element, { styles: TypographyConstants; cssText: string }>();
+let _typoCacheTime = 0;
+const TYPO_CACHE_TTL = 1000; // ms — CSS variables only change on grid toggle (re-creates plugins)
 
 function getTypographyConstants(view: EditorView): TypographyConstants {
   const dom = view.scrollDOM;
-  // Fast path: check if CSS variables changed by comparing a fingerprint
+  const now = performance.now();
+
+  // TTL fast path: skip getComputedStyle entirely within the TTL window
+  const cached = _typoCache.get(dom);
+  if (cached && (now - _typoCacheTime) < TYPO_CACHE_TTL) return cached.styles;
+
+  // Fingerprint path: check if CSS variables actually changed
   const computed = window.getComputedStyle(dom);
   const fp = computed.getPropertyValue('--tf-lh-normal') + '|' +
              computed.getPropertyValue('--tf-lh-heading') + '|' +
              computed.getPropertyValue('--tf-grid-unit');
-  const cached = _typoCache.get(dom);
-  if (cached && cached.cssText === fp) return cached.styles;
+  if (cached && cached.cssText === fp) {
+    _typoCacheTime = now;
+    return cached.styles;
+  }
 
   const styles: TypographyConstants = {
     lhNormal: ((n: number) => (Number.isNaN(n) ? 24 : n))(
@@ -73,6 +83,7 @@ function getTypographyConstants(view: EditorView): TypographyConstants {
     ),
   };
   _typoCache.set(dom, { styles, cssText: fp });
+  _typoCacheTime = now;
   return styles;
 }
 
