@@ -7,39 +7,63 @@
  * For semantic modes (paragraph/heading/sentence): uses CM6 line decorations.
  */
 
-import { Facet, RangeSet, RangeSetBuilder } from '@codemirror/state';
-import { Decoration, ViewPlugin } from '@codemirror/view';
-import { syntaxTree } from '@codemirror/language';
-import type { EditorView, ViewUpdate } from '@codemirror/view';
-import type { Extension, Text } from '@codemirror/state';
-import type { SyntaxNode } from '@lezer/common';
+import {Facet, RangeSet, RangeSetBuilder} from '@codemirror/state';
+import {Decoration, ViewPlugin} from '@codemirror/view';
+import {syntaxTree} from '@codemirror/language';
+import type {EditorView, ViewUpdate} from '@codemirror/view';
+import type {Extension, Text} from '@codemirror/state';
+import type {SyntaxNode} from '@lezer/common';
 
 // ── Intl.Segmenter types (not yet in lib.dom.d.ts) ──
 
 interface IntlSegmenter {
-  segment(input: string): IterableIterator<{ segment: string; index: number }>;
+  segment(input: string): IterableIterator<{segment: string; index: number}>;
 }
 interface IntlWithSegmenter {
   Segmenter?: new (
     locales?: string[],
-    options?: { granularity: string },
+    options?: {granularity: string},
   ) => IntlSegmenter;
 }
 
 // ── Cached Segmenter instance ──
 const _sentenceSegmenter: IntlSegmenter | null = (() => {
-  const intlWithSeg = typeof Intl !== 'undefined'
-    ? (Intl as unknown as IntlWithSegmenter)
-    : undefined;
+  const intlWithSeg =
+    typeof Intl !== 'undefined'
+      ? (Intl as unknown as IntlWithSegmenter)
+      : undefined;
   if (intlWithSeg?.Segmenter) {
     try {
-      return new intlWithSeg.Segmenter([], { granularity: 'sentence' });
+      return new intlWithSeg.Segmenter([], {granularity: 'sentence'});
     } catch (_e) {
+      // Intl.Segmenter may not be available in all environments
       return null;
     }
   }
   return null;
 })();
+
+// ── Syntax-aware sentence filtering ──
+
+const SYNTAX_PAIRS: [RegExp, RegExp][] = [
+  [/\$[^$]/, /\$[^$]\$/],
+  [/\[\[/, /\]\]/],
+  [/!\[\[/, /\]\]/],
+  [/\*\*/, /\*\*/],
+  [/__/, /__/],
+  [/~~/, /~~/],
+  [/\[<?\^/, /\]/],
+  [/\b`{1,2}/, /`{1,2}/],
+];
+
+function hasUnclosedSyntax(text: string): boolean {
+  for (const [open, close] of SYNTAX_PAIRS) {
+    const openCount = (text.match(new RegExp(open.source, 'g')) || []).length;
+    const closeCount = (text.match(new RegExp(close.source, 'g')) || []).length;
+    if (openCount !== closeCount) return true;
+  }
+  return false;
+}
 
 // ── Facet ──
 
@@ -54,7 +78,10 @@ const FOCUS_VIEWPORT_BUFFER = 100;
 
 // ── Helpers ──
 
-function isInsideCodeBlock(tree: ReturnType<typeof syntaxTree>, pos: number): boolean {
+function isInsideCodeBlock(
+  tree: ReturnType<typeof syntaxTree>,
+  pos: number,
+): boolean {
   let node: SyntaxNode | null = tree.resolve(pos, -1);
   while (node) {
     const name = node.type.name;
@@ -88,7 +115,7 @@ const _fmEndCache = new WeakMap<Text, number>();
 function getParagraphBounds(
   doc: Text,
   cursorLine: number,
-): { start: number; end: number } {
+): {start: number; end: number} {
   let start = cursorLine;
   while (start > 1 && doc.line(start - 1).text.trim() !== '') {
     start--;
@@ -100,14 +127,14 @@ function getParagraphBounds(
     end++;
   }
 
-  return { start, end };
+  return {start, end};
 }
 
 function getSectionBounds(
   doc: Text,
   cursorLine: number,
   tree: ReturnType<typeof syntaxTree>,
-): { start: number; end: number; level: number } {
+): {start: number; end: number; level: number} {
   let headingLine = 0;
   let headingLevel = 1;
 
@@ -115,7 +142,11 @@ function getSectionBounds(
   for (let i = cursorLine; i >= 1; i--) {
     const line = doc.line(i);
     const match = line.text.match(/^(#{1,6})\s/);
-    if (match && !isInsideCodeBlock(tree, line.from) && !isInsideFrontmatter(doc, i)) {
+    if (
+      match &&
+      !isInsideCodeBlock(tree, line.from) &&
+      !isInsideFrontmatter(doc, i)
+    ) {
       headingLine = i;
       headingLevel = match[1].length;
       break;
@@ -129,19 +160,24 @@ function getSectionBounds(
   for (let i = cursorLine + 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const match = line.text.match(/^(#{1,6})\s/);
-    if (match && match[1].length <= headingLevel && !isInsideCodeBlock(tree, line.from) && !isInsideFrontmatter(doc, i)) {
+    if (
+      match &&
+      match[1].length <= headingLevel &&
+      !isInsideCodeBlock(tree, line.from) &&
+      !isInsideFrontmatter(doc, i)
+    ) {
       end = i - 1;
       break;
     }
   }
 
-  return { start, end, level: headingLevel };
+  return {start, end, level: headingLevel};
 }
 
 function getSentenceBounds(
   doc: Text,
   cursorPos: number,
-): { start: number; end: number } {
+): {start: number; end: number} {
   const cursorLine = doc.lineAt(cursorPos);
 
   // Gather the current paragraph (contiguous non-empty lines)
@@ -165,7 +201,7 @@ function getSentenceBounds(
   if (_sentenceSegmenter) {
     try {
       const segments = _sentenceSegmenter.segment(paraText);
-      let result = { from: 0, to: paraText.length };
+      let result = {from: 0, to: paraText.length};
       let segResult = segments.next();
 
       while (!segResult.done) {
@@ -173,7 +209,7 @@ function getSentenceBounds(
         const segStart = segResult.value.index;
         const segEnd = segStart + seg.length;
         if (segStart <= col && col < segEnd) {
-          result = { from: segStart, to: segEnd };
+          result = {from: segStart, to: segEnd};
           break;
         }
         segResult = segments.next();
@@ -184,6 +220,10 @@ function getSentenceBounds(
         end: paraStart + result.to,
       };
     } catch (_e) {
+      console.warn(
+        '[TypographicFlow] Focus mode sentence segmentation failed',
+        _e,
+      );
       // Fall through to regex fallback
     }
   }
@@ -209,10 +249,23 @@ function getSentenceBounds(
     start++;
   }
 
-  return {
+  const result = {
     start: paraStart + start,
     end: paraStart + end,
   };
+
+  // ── NLP Filter: merge sentence if syntax is broken ──
+  const sentenceText = doc.sliceString(result.start, result.end);
+  try {
+    if (hasUnclosedSyntax(sentenceText)) {
+      if (result.start > paraStart) result.start = paraStart;
+      if (result.end < paraEnd) result.end = paraEnd;
+    }
+  } catch (_e) {
+    // hasUnclosedSyntax regex failed — keep wider sentence bounds
+  }
+
+  return result;
 }
 
 // ── Plugin ──
@@ -238,7 +291,7 @@ class FocusModePlugin {
   private computeBounds(
     state: import('@codemirror/state').EditorState,
     tree: ReturnType<typeof syntaxTree>,
-  ): { start: number; end: number } | null {
+  ): {start: number; end: number} | null {
     const doc = state.doc;
     const pos = state.selection.main.head;
     const ln = doc.lineAt(pos).number;
@@ -282,7 +335,7 @@ class FocusModePlugin {
 
     const self = this;
     this._scrollHandler = () => self.positionOverlays();
-    scroller.addEventListener('scroll', this._scrollHandler, { passive: true });
+    scroller.addEventListener('scroll', this._scrollHandler, {passive: true});
   }
 
   private positionOverlays(): void {
@@ -295,8 +348,7 @@ class FocusModePlugin {
     v.requestMeasure({
       read(view) {
         const coords = view.coordsAtPos(pos);
-        if (!coords)
-          return { lineTop: -1, lineBottom: -1, contentH: 0 };
+        if (!coords) return {lineTop: -1, lineBottom: -1, contentH: 0};
 
         const scrollerRect = view.scrollDOM.getBoundingClientRect();
         return {
@@ -307,7 +359,12 @@ class FocusModePlugin {
         };
       },
       write(data) {
-        if (data.lineTop < 0 || data.lineBottom < 0 || !self.overlayTop || !self.overlayBottom)
+        if (
+          data.lineTop < 0 ||
+          data.lineBottom < 0 ||
+          !self.overlayTop ||
+          !self.overlayBottom
+        )
           return;
         self.overlayTop.style.top = '0px';
         self.overlayTop.style.height = Math.max(0, data.lineTop) + 'px';
@@ -442,7 +499,7 @@ class FocusModePlugin {
       builder.add(
         line.from,
         line.from,
-        Decoration.line({ class: 'tf-focus-dim' }),
+        Decoration.line({class: 'tf-focus-dim'}),
       );
     }
     this.decorations = builder.finish();

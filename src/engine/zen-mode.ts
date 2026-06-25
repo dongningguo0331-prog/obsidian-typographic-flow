@@ -7,6 +7,7 @@
 
 const ZEN_BODY_CLASS = 'plugin-tf-zen';
 const ZEN_ENTERING_CLASS = 'tf-zen-entering';
+const ZEN_DYNAMIC_CLASS = 'plugin-tf-zen-dynamic';
 
 export class ZenModeManager {
   private cssNode: HTMLStyleElement | null = null;
@@ -16,7 +17,9 @@ export class ZenModeManager {
   setOpacity(opacity: number): void {
     // Validate: must be a finite number between 0 and 1
     if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
-      console.warn(`[TypographicFlow] Invalid zen opacity: ${opacity}, clamping to 0-1`);
+      console.warn(
+        `[TypographicFlow] Invalid zen opacity: ${opacity}, clamping to 0-1`,
+      );
       opacity = Math.max(0, Math.min(1, opacity || 0.25));
     }
     if (!this.cssNode) {
@@ -46,6 +49,16 @@ export class ZenModeManager {
     }
     document.body.classList.remove(ZEN_BODY_CLASS);
     document.body.classList.remove(ZEN_ENTERING_CLASS);
+    document.body.classList.remove(ZEN_DYNAMIC_CLASS);
+  }
+
+  /** Enable / disable velocity-driven dynamic opacity. */
+  setDynamic(enabled: boolean): void {
+    if (enabled) {
+      document.body.classList.add(ZEN_DYNAMIC_CLASS);
+    } else {
+      document.body.classList.remove(ZEN_DYNAMIC_CLASS);
+    }
   }
 
   /** Clean up injected style node. */

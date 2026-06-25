@@ -46,7 +46,13 @@ Keep your cursor at a fixed vertical position on the screen as you type — like
 Reduce visual noise while writing. Two complementary approaches:
 
 #### Zen Mode
-Dims **all non-active lines** to a configurable opacity. The active line stays bright. Works with code blocks, quotes, and embed blocks.
+Dims **all non-active lines** to a configurable opacity. Three modes available:
+
+| Mode | Behavior | Use case |
+|------|----------|----------|
+| **Static** | Fixed opacity set by slider | Consistent subtle dimming |
+| **Dynamic** | Opacity responds to typing speed (WPM) | Deep focus when typing fast, gentle context when idle |
+| **Off** | Zen mode disabled | Normal editing |
 
 #### Focus Mode
 Dims lines **outside the current semantic range**. Four modes available:
@@ -164,7 +170,7 @@ All features can be toggled via the Command Palette (Ctrl/Cmd+P):
 | Command | Description | Default |
 |---------|-------------|---------|
 | Toggle Typewriter Scrolling | Enable/disable typewriter scroll | ON |
-| Toggle Zen Mode | Enable/disable zen mode | OFF |
+| Toggle Zen Mode | Cycle Zen mode (off → static → dynamic → off) | OFF |
 | Cycle Focus Mode | Cycle through focus modes (off → line → paragraph → heading → sentence) | — |
 | Turn Off Focus Mode | Disable focus mode | — |
 | Toggle Reading Colors | Enable/disable reading color palette | OFF |
@@ -202,8 +208,8 @@ Access settings via: Settings → Community Plugins → Typographic Flow → ⚙
 
 | Setting | Type | Range | Default | Description |
 |---------|------|-------|---------|-------------|
-| Zen Mode | Toggle | — | OFF | Dim non-active lines |
-| Zen Opacity | Slider | 0–100% | 25% | Brightness of dimmed lines |
+| Zen Mode | Dropdown | off/static/dynamic | off | Static: fixed opacity. Dynamic: responds to typing speed |
+| Zen Opacity | Slider | 0–100% | 25% | Brightness of dimmed lines (static mode only) |
 | Focus Mode | Dropdown | off/line/paragraph/heading/sentence | off | Semantic focus mode |
 | Focus Dimming | Slider | 0–100% | 25% | Brightness of lines outside focus range |
 
@@ -229,6 +235,7 @@ Access settings via: Settings → Community Plugins → Typographic Flow → ⚙
 | Grid Line Opacity (Light) | Slider | 0–0.15 | 0.045 | Grid brightness in light mode |
 | Grid Line Opacity (Dark) | Slider | 0–0.15 | 0.04 | Grid brightness in dark mode |
 | Corner Radius Coefficient | Slider | 0–1 | 0.285 | Roundness of corners |
+| Auto Calibrate | Toggle | — | OFF | Auto-compute optimal grid unit from theme font metrics |
 | CJK Prose | Toggle | — | OFF | CJK typography |
 | Justify Text | Toggle | — | OFF | CJK justification |
 | First-line Indent | Toggle | — | OFF | 2em indent (Reading View only) |

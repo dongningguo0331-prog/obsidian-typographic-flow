@@ -6,7 +6,7 @@
  * titlebar, status bar). Saves and restores layout state on enable/disable.
  */
 
-import type { App } from 'obsidian';
+import type {App} from 'obsidian';
 
 const FULLSCREEN_CLASS = 'plugin-tf-fullscreen';
 const MAXIMIZED_CLASS = 'tf-maximized';
@@ -24,6 +24,7 @@ interface WorkspaceSplit {
 }
 
 interface WorkspaceWithSplits {
+  // Internal Obsidian API — may change across versions
   leftSplit?: WorkspaceSplit;
   rightSplit?: WorkspaceSplit;
   containerEl: HTMLElement;

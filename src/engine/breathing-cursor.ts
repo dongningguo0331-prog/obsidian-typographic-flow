@@ -73,11 +73,15 @@ export class BreathingCursorManager {
 
   private detachKeyListener(): void {
     if (this.keyHandler) {
-      document.removeEventListener('keydown', this.keyHandler, true);
+      try {
+        document.removeEventListener('keydown', this.keyHandler, true);
+      } catch (_e) {}
       this.keyHandler = null;
     }
     if (this.inputHandler) {
-      document.removeEventListener('input', this.inputHandler, true);
+      try {
+        document.removeEventListener('input', this.inputHandler, true);
+      } catch (_e) {}
       this.inputHandler = null;
     }
   }

@@ -36,6 +36,10 @@ body .markdown-rendered :is(h1, h2, h3) {
 /* Active line stays bright; all other lines dim to --zen-opacity */
 body.plugin-tf-zen .cm-editor.cm-focused .cm-line:not(.cm-active) {
   opacity: var(--zen-opacity, 0.25);
+  transition: opacity 0.8s ease;
+}
+body.plugin-tf-zen.plugin-tf-zen-dynamic .cm-editor.cm-focused .cm-line:not(.cm-active) {
+  transition: opacity 0.3s ease;
 }
 
 /* ===== Zen Mode: Code & Quote Blocks ===== */
@@ -363,6 +367,25 @@ body.plugin-tf-colors .english-reading .markdown-rendered :is(p, li, blockquote,
    Controlled by: body.plugin-tf-grid toggle
    ========================================================== */
 
+/* ── Variable Font Weight (independent of Colors module) ── */
+body .markdown-rendered {
+  font-family: 'Source Han Serif SC VF', var(--font-text-theme), serif;
+  font-weight: var(--user-wght, 400);
+}
+body .markdown-source-view.mod-cm6 .cm-scroller {
+  font-family: 'Source Han Serif SC VF', var(--font-text-theme), serif;
+  font-weight: var(--user-wght, 400);
+}
+
+/* ── Mindful Font Weight (flow state) ── */
+.cm-content {
+  --flow-wght: 0;
+}
+.cm-line {
+  transition: font-weight 0.8s ease;
+  font-weight: calc(var(--user-wght, 400) + var(--flow-wght, 0));
+}
+
 /* ── 排版常数 ── */
 body.plugin-tf-grid {
   --grid-unit: 16px;
@@ -601,16 +624,48 @@ body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math mjx-container {
   max-width: 100%;
   vertical-align: middle !important;
 }
-body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math {
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math:not(.cm-math-2) {
   display: inline-block !important;
   height: auto !important;
   max-height: none !important;
   line-height: 1 !important;
 }
-body.plugin-tf-grid :is(.markdown-rendered .math-block, .markdown-source-view.mod-cm6 .cm-math.cm-block-math, .math.math-block) {
+/* Block math ($$) — source code span: block-level + centered */
+body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .cm-math-2,
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .cm-math-2 {
+  display: block !important;
+  width: 100%;
+  text-align: center !important;
+  line-height: normal !important;
+}
+/* Block math rendered preview (math-block) — center + background in source view */
+body.plugin-tf-cjk-prose .markdown-source-view.mod-cm6 .math-block,
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .math-block {
+  text-align: center !important;
+}
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .math-block {
   background-color: color-mix(in srgb, var(--code-background, var(--grid-bfc-bg)) 60%, transparent);
   margin-block: var(--grid-unit) !important; border-radius: var(--grid-radius);
-  line-height: calc(var(--grid-unit) * 2) !important;
+  line-height: normal !important;
+}
+/* Reading View block math */
+body.plugin-tf-cjk-prose .markdown-rendered .math-block,
+body.plugin-tf-grid .markdown-rendered .math-block,
+body.plugin-tf-cjk-prose .markdown-rendered .math.math-block,
+body.plugin-tf-grid .markdown-rendered .math.math-block {
+  text-align: center !important;
+  line-height: normal !important;
+}
+body.plugin-tf-grid .markdown-rendered .math-block,
+body.plugin-tf-grid .markdown-rendered .math.math-block {
+  background-color: color-mix(in srgb, var(--code-background, var(--grid-bfc-bg)) 60%, transparent);
+  margin-block: var(--grid-unit) !important; border-radius: var(--grid-radius);
+}
+/* mjx-container: preserve natural line-height */
+body.plugin-tf-grid .markdown-rendered .math-block mjx-container,
+body.plugin-tf-grid .markdown-rendered .math.math-block mjx-container,
+body.plugin-tf-grid .markdown-source-view.mod-cm6 .math-block mjx-container {
+  line-height: normal !important;
 }
 
 /* ── 八、顶端 UI 规范化 ── */
@@ -790,11 +845,11 @@ body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm
   .HyperMD-codeblock,
   .HyperMD-hr
 ),
-body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-source-view.mod-cm6 .cm-line:has(.cm-math),
 body.plugin-tf-cjk-prose.plugin-tf-cjk-justify .markdown-rendered :is(p, li, td, th):has(.math.math-inline) {
   text-align: left !important;
   hyphens: none !important;
 }
+
 
 /* ── 行内代码断词（仅 justify 模式下需要） ── */
 /* #1 river-effect fix: a long inline code token wrapping entirely

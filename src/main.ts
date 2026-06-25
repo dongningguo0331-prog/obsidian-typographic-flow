@@ -1,273 +1,38 @@
 /**
- * Typographic Flow — Main Plugin Entry
+ * Typographic Flow �?Main Plugin Entry
  *
  * Orchestrates all modules: typewriter scroll, focus/zen modes,
  * breathing cursor, strikethrough animation, baseline grid,
  * reading colors, and CJK prose formatting.
  */
 
-import { Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { Compartment } from '@codemirror/state';
-import type { App, Editor, MarkdownView } from 'obsidian';
-import type { Extension } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
+import {Notice, Plugin} from 'obsidian';
+import {Compartment} from '@codemirror/state';
+import type {MarkdownView} from 'obsidian';
+import type {Extension} from '@codemirror/state';
+
+import {buildTypewriterExtensions} from './engine/typewriter';
+import {buildFocusExtensions, type FocusMode} from './engine/focus-mode';
+import {ZenModeManager} from './engine/zen-mode';
+import {VelocityZenEngine} from './engine/velocity-zen';
+import {BreathingCursorManager} from './engine/breathing-cursor';
+import {StrikethroughAnimManager} from './engine/strikethrough-anim';
+import {FullscreenManager, type VignetteStyle} from './engine/fullscreen';
+import {
+  CursorRestoreManager,
+  setCursorRestoreForViewPlugin,
+} from './engine/cursor-restore';
+import {FlowStateManager, setFlowStateForViewPlugin} from './engine/flow-state';
 
 import {
-  buildTypewriterExtensions,
-} from './engine/typewriter';
-import {
-  buildFocusExtensions,
-  type FocusMode,
-} from './engine/focus-mode';
-import { ZenModeManager } from './engine/zen-mode';
-import { BreathingCursorManager } from './engine/breathing-cursor';
-import { StrikethroughAnimManager } from './engine/strikethrough-anim';
-import { FullscreenManager, type VignetteStyle } from './engine/fullscreen';
-import { CursorRestoreManager, setCursorRestoreForViewPlugin } from './engine/cursor-restore';
-
-// ── CSS Helpers ──
-
-function setBodyCSS(key: string, value: string): void {
-  document.body.style.setProperty(key, value);
-}
-
-function removeBodyCSS(key: string): void {
-  document.body.style.removeProperty(key);
-}
-
-// ── CM6 EditorView accessor ──
-// Obsidian's Editor interface doesn't expose .cm, but the underlying
-// CodeMirror 6 editor has it. This helper safely extracts it.
-
-interface EditorWithCm extends Editor {
-  cm: EditorView;
-}
-
-function getCmView(view: MarkdownView): EditorView | null {
-  if (!view?.editor) return null;
-  const editor = view.editor as EditorWithCm;
-  return editor.cm ?? null;
-}
-
-// ── Deep merge (source wins for primitives; objects merge recursively) ──
-
-function _deepMerge<T extends Record<string, unknown>>(
-  target: T,
-  source: Partial<T>,
-): T {
-  const result = Object.assign({}, target) as Record<string, unknown>;
-  for (const key of Object.keys(source)) {
-    const srcVal = (source as Record<string, unknown>)[key];
-    const tgtVal = result[key];
-    const srcIsObj = srcVal !== null && typeof srcVal === 'object' && !Array.isArray(srcVal);
-    const tgtIsObj = tgtVal !== null && typeof tgtVal === 'object' && !Array.isArray(tgtVal);
-    if (srcIsObj && tgtIsObj) {
-      result[key] = _deepMerge(
-        tgtVal as Record<string, unknown>,
-        srcVal as Record<string, unknown>,
-      );
-    } else if (srcVal !== undefined) {
-      result[key] = srcVal;
-    }
-  }
-  return result as T;
-}
-
-// ── Settings Schema ──
-
-const SETTINGS_VERSION = 1;
-
-// v1: initial schema — no migration needed, placeholder for future versions
-const SETTING_MIGRATIONS: Record<number, (s: PluginSettings) => PluginSettings> = {
-  1: (s) => s,
-};
-
-function migrateSettings(settings: PluginSettings): PluginSettings {
-  let v = settings.settingsVersion || 0;
-  while (v < SETTINGS_VERSION) {
-    const fn = SETTING_MIGRATIONS[v + 1];
-    if (fn) {
-      settings = fn(settings);
-      v = settings.settingsVersion || v + 1;
-    } else {
-      settings.settingsVersion = SETTINGS_VERSION;
-      break;
-    }
-  }
-  return settings;
-}
-
-// ── Settings Validation ──
-
-const _booleanKeys: readonly (keyof PluginSettings)[] = [
-  'enabled', 'suspensionEnabled', 'smoothScrollEnabled', 'smartOffsetEnabled',
-  'zenEnabled', 'colorsEnabled', 'gridEnabled', 'gridShowLines',
-  'cjkProseEnabled', 'cjkProseJustify', 'cjkProseIndent',
-  'breatheEnabled', 'strikeAnimEnabled',
-  'fullscreenEnabled', 'fullscreenShowHeader', 'fullscreenShowStatusBar',
-  'fullscreenShowVignette', 'cursorRestoreEnabled',
-];
-
-const _numberKeys: readonly (keyof PluginSettings)[] = [
-  'typewriterOffset', 'deadZone', 'zenOpacity', 'focusOpacity',
-  'colorsAccentHue', 'colorsAccentSat', 'colorsBgWarmth', 'colorsTextContrast',
-  'gridUnit', 'gridOffsetY', 'gridLineOpacityLight', 'gridLineOpacityDark', 'gridRadiusCoef',
-  'breatheDuration', 'breatheMinOpacity', 'strikeAnimDuration',
-];
-
-function validateSettings(settings: PluginSettings): PluginSettings {
-  const defaults = DEFAULT_SETTINGS;
-  const rec = settings as unknown as Record<string, unknown>;
-  let hasInvalid = false;
-
-  for (const key of _booleanKeys) {
-    if (typeof rec[key] !== 'boolean') {
-      rec[key] = defaults[key];
-      hasInvalid = true;
-    }
-  }
-  for (const key of _numberKeys) {
-    const val = rec[key];
-    if (typeof val !== 'number' || !Number.isFinite(val)) {
-      rec[key] = defaults[key];
-      hasInvalid = true;
-    }
-  }
-  if (typeof settings.focusMode !== 'string' ||
-      !['off', 'line', 'paragraph', 'heading', 'sentence'].includes(settings.focusMode)) {
-    settings.focusMode = 'off';
-    hasInvalid = true;
-  }
-
-  if (hasInvalid) {
-    console.warn('[TypographicFlow] Invalid settings detected, falling back to defaults for affected fields');
-  }
-  return settings;
-}
-
-export interface PluginSettings {
-  // Typewriter
-  enabled: boolean;
-  typewriterOffset: number;
-  deadZone: number;
-  suspensionEnabled: boolean;
-  smoothScrollEnabled: boolean;
-  smartOffsetEnabled: boolean;
-
-  // Zen
-  zenEnabled: boolean;
-  zenOpacity: number;
-
-  // Focus
-  focusMode: FocusMode;
-  focusOpacity: number;
-
-  // Colors
-  colorsEnabled: boolean;
-  colorsAccentHue: number;
-  colorsAccentSat: number;
-  colorsBgWarmth: number;
-  colorsTextContrast: number;
-
-  // Grid
-  gridEnabled: boolean;
-  gridShowLines: boolean;
-  gridUnit: number;
-  gridOffsetY: number;
-  gridLineOpacityLight: number;
-  gridLineOpacityDark: number;
-  gridRadiusCoef: number;
-
-  // CJK Prose
-  cjkProseEnabled: boolean;
-  cjkProseJustify: boolean;
-  cjkProseIndent: boolean;
-
-  // Breathing Cursor
-  breatheEnabled: boolean;
-  breatheDuration: number;
-  breatheMinOpacity: number;
-
-  // Strikethrough Animation
-  strikeAnimEnabled: boolean;
-  strikeAnimDuration: number;
-
-  // Fullscreen
-  fullscreenEnabled: boolean;
-  fullscreenShowHeader: boolean;
-  fullscreenShowStatusBar: boolean;
-  fullscreenShowVignette: boolean;
-  fullscreenVignetteStyle: VignetteStyle;
-
-  // Cursor Restore
-  cursorRestoreEnabled: boolean;
-  cursorPositions: Record<string, { from: number; to: number; scroll: number }>;
-
-  // Schema
-  settingsVersion: number;
-}
-
-const DEFAULT_SETTINGS: PluginSettings = {
-  // Typewriter
-  enabled: true,
-  typewriterOffset: 0.5,
-  deadZone: 2,
-  suspensionEnabled: true,
-  smoothScrollEnabled: true,
-  smartOffsetEnabled: true,
-
-  // Zen
-  zenEnabled: false,
-  zenOpacity: 0.25,
-
-  // Focus
-  focusMode: 'off' as FocusMode,
-  focusOpacity: 0.25,
-
-  // Colors
-  colorsEnabled: false,
-  colorsAccentHue: 0,
-  colorsAccentSat: 0,
-  colorsBgWarmth: 0,
-  colorsTextContrast: 0,
-
-  // Grid
-  gridEnabled: true,
-  gridShowLines: true,
-  gridUnit: 16,
-  gridOffsetY: 35,
-  gridLineOpacityLight: 0.045,
-  gridLineOpacityDark: 0.04,
-  gridRadiusCoef: 0.285,
-
-  // CJK Prose
-  cjkProseEnabled: false,
-  cjkProseJustify: false,
-  cjkProseIndent: false,
-
-  // Breathing Cursor
-  breatheEnabled: false,
-  breatheDuration: 4,
-  breatheMinOpacity: 0.4,
-
-  // Strikethrough Animation
-  strikeAnimEnabled: false,
-  strikeAnimDuration: 0.35,
-
-  // Fullscreen
-  fullscreenEnabled: false,
-  fullscreenShowHeader: false,
-  fullscreenShowStatusBar: false,
-  fullscreenShowVignette: true,
-  fullscreenVignetteStyle: 'radial',
-
-  // Cursor Restore
-  cursorRestoreEnabled: true,
-  cursorPositions: {},
-
-  // Schema
-  settingsVersion: SETTINGS_VERSION,
-};
+  PluginSettings,
+  DEFAULT_SETTINGS,
+  SETTINGS_VERSION,
+  migrateSettings,
+  validateSettings,
+} from './settings';
+import {setBodyCSS, removeBodyCSS, getCmView} from './ui/helpers';
+import {TypographicFlowSettingTab} from './ui/settings-tab';
 
 // ── Plugin ──
 
@@ -275,9 +40,11 @@ export default class TypographicFlowPlugin extends Plugin {
   settings!: PluginSettings;
 
   private zenMode!: ZenModeManager;
+  private velocityZen!: VelocityZenEngine;
   private breathe!: BreathingCursorManager;
   private strike!: StrikethroughAnimManager;
   private fullscreen!: FullscreenManager;
+  private flowState!: FlowStateManager;
 
   private _compartments!: {
     typewriter: Compartment;
@@ -296,7 +63,7 @@ export default class TypographicFlowPlugin extends Plugin {
   // ---- Lifecycle ----
 
   async onload(): Promise<void> {
-    // Create Compartments once — they persist for the plugin's lifetime
+    // Create Compartments once �?they persist for the plugin's lifetime
     this._compartments = {
       typewriter: new Compartment(),
       focusMode: new Compartment(),
@@ -308,18 +75,24 @@ export default class TypographicFlowPlugin extends Plugin {
     this.registerEditorExtension(Object.values(this._compartmentValues));
 
     this.zenMode = new ZenModeManager();
+    this.velocityZen = new VelocityZenEngine((opacity) => {
+      this.zenMode.setOpacity(opacity);
+    });
     this.breathe = new BreathingCursorManager();
     this.strike = new StrikethroughAnimManager();
     this.fullscreen = new FullscreenManager(this.app);
     this.fullscreen.onExit = () => this.toggleFullscreen(false);
     this.fullscreen.onToggle = () => this.toggleFullscreen();
     this.cursorRestore = new CursorRestoreManager(this.app);
+    this.flowState = new FlowStateManager();
 
     try {
       await this._initPlugin();
     } catch (err) {
       console.error('[TypographicFlow] Failed to load:', err);
-      new Notice('Typographic Flow: failed to load. Check console for details.');
+      new Notice(
+        'Typographic Flow: failed to load. Check console for details.',
+      );
     }
   }
 
@@ -327,18 +100,12 @@ export default class TypographicFlowPlugin extends Plugin {
   async _initPlugin(): Promise<void> {
     const loaded = await this.loadData();
     const migrated = migrateSettings(loaded || {});
-    this.settings = validateSettings(
-      _deepMerge(
-        DEFAULT_SETTINGS as unknown as Record<string, unknown>,
-        migrated as unknown as Record<string, unknown>,
-      ) as unknown as PluginSettings,
-    );
+    this.settings = validateSettings({...DEFAULT_SETTINGS, ...migrated});
 
-    // Cursor position restore — MUST be before typewriter so ViewPlugin can access it
+    // Cursor position restore �?MUST be before typewriter so ViewPlugin can access it
     if (this.settings.cursorRestoreEnabled) {
-      this.cursorRestore.enable(
-        this.settings.cursorPositions,
-        () => this.saveData(this.settings),
+      this.cursorRestore.enable(this.settings.cursorPositions, () =>
+        this._save(),
       );
       setCursorRestoreForViewPlugin(this.cursorRestore);
     }
@@ -347,13 +114,18 @@ export default class TypographicFlowPlugin extends Plugin {
     if (this.settings.enabled) {
       document.body.classList.add('plugin-cm-typewriter-scroll');
       const exts = buildTypewriterExtensions(this.settings);
-      this._compartmentValues.typewriter = this._compartments.typewriter.of(exts);
+      this._compartmentValues.typewriter =
+        this._compartments.typewriter.of(exts);
       this.dispatchToEditors(exts);
     }
 
-    if (this.settings.zenEnabled) {
+    if (this.settings.zenMode === 'static') {
       this.zenMode.setOpacity(this.settings.zenOpacity);
       this.zenMode.enable();
+    } else if (this.settings.zenMode === 'dynamic') {
+      this.zenMode.enable();
+      this.zenMode.setDynamic(true);
+      this.velocityZen.enable();
     }
 
     if (this.settings.breatheEnabled) {
@@ -376,6 +148,13 @@ export default class TypographicFlowPlugin extends Plugin {
 
     if (this.settings.colorsEnabled) this.enableColors();
     if (this.settings.gridEnabled) this.enableGrid();
+    setBodyCSS('--user-wght', String(this.settings.fontWeight));
+    if (this.settings.flowEnabled) {
+      this.flowState.enable();
+      this.flowState.setSensitivity(this.settings.flowSensitivity);
+      this.flowState.setWeightRange(this.settings.flowWeightRange);
+    }
+    setFlowStateForViewPlugin(this.flowState);
     if (this.settings.cjkProseEnabled) this.enableCjkProse();
     if (this.settings.cjkProseJustify) this.enableCjkJustify();
     if (this.settings.cjkProseIndent) this.enableCjkIndent();
@@ -400,7 +179,22 @@ export default class TypographicFlowPlugin extends Plugin {
           this.dispatchToEditors(buildTypewriterExtensions(this.settings));
         });
       };
-      this.registerEvent(this.app.workspace.on('layout-change', this._layoutChangeHandler));
+      this.registerEvent(
+        this.app.workspace.on('layout-change', this._layoutChangeHandler),
+      );
+    }
+
+    // Auto-calibrate grid when theme / CSS changes
+    if (this.settings.gridAutoCalibrate && this.settings.gridEnabled) {
+      this.registerEvent(
+        this.app.workspace.on('css-change', () => {
+          this._debouncedCalibrate();
+        }),
+      );
+      // Also run once on load (delayed so DOM can settle)
+      this.app.workspace.onLayoutReady(() => {
+        this._autoCalibrateGrid();
+      });
     }
 
     // Status bar indicator
@@ -428,8 +222,8 @@ export default class TypographicFlowPlugin extends Plugin {
     this.disableCjkIndent();
 
     // Reset settings
-    this.settings = { ...DEFAULT_SETTINGS, settingsVersion: SETTINGS_VERSION };
-    await this.saveData(this.settings);
+    this.settings = {...DEFAULT_SETTINGS, settingsVersion: SETTINGS_VERSION};
+    await this._save();
 
     // Re-initialize
     await this._initPlugin();
@@ -442,8 +236,12 @@ export default class TypographicFlowPlugin extends Plugin {
     this._statusBarItem = null;
     this.fullscreen?.destroy();
     this.cursorRestore?.destroy();
+    setCursorRestoreForViewPlugin(null);
+    this.flowState?.destroy();
+    setFlowStateForViewPlugin(null);
     this.zenMode?.disable();
     this.zenMode?.destroy();
+    this.velocityZen?.destroy();
     this.breathe?.destroy();
     this.strike?.destroy();
     document.body.classList.remove('plugin-tf-focus');
@@ -466,12 +264,21 @@ export default class TypographicFlowPlugin extends Plugin {
     this.addCommand({
       id: 'toggle-zen-mode',
       name: 'Toggle Zen Mode On/Off',
-      callback: () => this.toggleZen(),
+      callback: () => {
+        const modes: Array<'off' | 'static' | 'dynamic'> = [
+          'off',
+          'static',
+          'dynamic',
+        ];
+        const idx = modes.indexOf(this.settings.zenMode);
+        const next = modes[(idx + 1) % modes.length];
+        this.changeZenMode(next);
+      },
     });
 
     this.addCommand({
       id: 'cycle-focus-mode',
-      name: 'Cycle Focus Mode (off → line → paragraph → heading → sentence)',
+      name: 'Cycle Focus Mode (off �?line �?paragraph �?heading �?sentence)',
       callback: () => {
         const modes: FocusMode[] = [
           'off',
@@ -585,10 +392,19 @@ export default class TypographicFlowPlugin extends Plugin {
 
   // ---- Typewriter Toggle & Settings ----
 
-  private _notify(_label: string, _on: boolean): void {
-    // Status bar is the primary feedback channel — no Notice spam on rapid toggles.
-    // Users can see active modes in the status bar (⚙ TW·Z·FL·C·G·CJK).
+  private _notify(..._args: unknown[]): void {
+    // Status bar is the primary feedback channel �?no Notice spam on rapid toggles.
+    // Users can see active modes in the status bar (�?TW·Z·FL·C·G·CJK).
     this._updateStatusBar();
+  }
+
+  private _save(): Promise<void> {
+    return this.saveData(this.settings)
+      .catch((e) => {
+        console.error('[TypographicFlow] Failed to save settings', e);
+        new Notice('TypographicFlow: Failed to save settings');
+      })
+      .then(() => {});
   }
 
   private static readonly _statusAbbreviations: Record<string, string> = {
@@ -607,10 +423,13 @@ export default class TypographicFlowPlugin extends Plugin {
     if (!this._statusBarItem) return;
     const parts: string[] = [];
     if (this.settings.enabled) parts.push('TW');
-    if (this.settings.zenEnabled) parts.push('Z');
+    if (this.settings.zenMode !== 'off') parts.push('Z');
     if (this.settings.focusMode !== 'off') {
       const abbrev: Record<string, string> = {
-        line: 'FL', paragraph: 'FP', heading: 'FH', sentence: 'FS',
+        line: 'FL',
+        paragraph: 'FP',
+        heading: 'FH',
+        sentence: 'FS',
       };
       parts.push(abbrev[this.settings.focusMode] ?? 'F');
     }
@@ -619,7 +438,7 @@ export default class TypographicFlowPlugin extends Plugin {
     if (this.settings.cjkProseEnabled) parts.push('CJK');
 
     if (parts.length) {
-      this._statusBarItem.setText(`⚙ ${parts.join('·')}`);
+      this._statusBarItem.setText(`�?${parts.join('·')}`);
       const fullNames = parts.map(
         (p) => TypographicFlowPlugin._statusAbbreviations[p] ?? p,
       );
@@ -634,24 +453,20 @@ export default class TypographicFlowPlugin extends Plugin {
     if (newValue === null) newValue = !this.settings.enabled;
     this.settings.enabled = newValue;
     this._notify('Typewriter', newValue);
-    newValue
-      ? this.enableTypewriterScroll()
-      : this.disableTypewriterScroll();
-    this.saveData(this.settings);
+    newValue ? this.enableTypewriterScroll() : this.disableTypewriterScroll();
+    this._save();
   }
 
   private enableTypewriterScroll(): void {
     document.body.classList.add('plugin-cm-typewriter-scroll');
     const exts = buildTypewriterExtensions(this.settings);
-    this._compartmentValues.typewriter =
-      this._compartments.typewriter.of(exts);
+    this._compartmentValues.typewriter = this._compartments.typewriter.of(exts);
     this.dispatchToEditors(exts);
   }
 
   private disableTypewriterScroll(): void {
     document.body.classList.remove('plugin-cm-typewriter-scroll');
-    this._compartmentValues.typewriter =
-      this._compartments.typewriter.of([]);
+    this._compartmentValues.typewriter = this._compartments.typewriter.of([]);
     this.dispatchToEditors([]);
 
     // Clean up padding styles
@@ -668,14 +483,13 @@ export default class TypographicFlowPlugin extends Plugin {
 
   private reconfigureTypewriter(): void {
     if (!this.settings.enabled) {
-      this.saveData(this.settings);
+      this._save();
       return;
     }
     const exts = buildTypewriterExtensions(this.settings);
-    this._compartmentValues.typewriter =
-      this._compartments.typewriter.of(exts);
+    this._compartmentValues.typewriter = this._compartments.typewriter.of(exts);
     this.dispatchToEditors(exts);
-    this.saveData(this.settings);
+    this._save();
   }
 
   changeTypewriterOffset(newValue: number): void {
@@ -705,19 +519,34 @@ export default class TypographicFlowPlugin extends Plugin {
 
   // ---- Zen Mode ----
 
-  toggleZen(newValue: boolean | null = null): void {
-    if (newValue === null) newValue = !this.settings.zenEnabled;
-    this.settings.zenEnabled = newValue;
-    this._notify('Zen Mode', newValue);
-    newValue ? this.zenMode.enable() : this.zenMode.disable();
-    this.zenMode.setOpacity(this.settings.zenOpacity);
-    this.saveData(this.settings);
+  changeZenMode(mode: 'off' | 'static' | 'dynamic'): void {
+    // Tear down current mode
+    if (this.settings.zenMode === 'dynamic') {
+      this.velocityZen.disable();
+      this.zenMode.setDynamic(false);
+    }
+    if (this.settings.zenMode !== 'off') {
+      this.zenMode.disable();
+    }
+
+    this.settings.zenMode = mode;
+
+    if (mode === 'static') {
+      this.zenMode.enable();
+      this.zenMode.setOpacity(this.settings.zenOpacity);
+    } else if (mode === 'dynamic') {
+      this.zenMode.enable();
+      this.zenMode.setDynamic(true);
+      this.velocityZen.enable();
+    }
+    this._save();
+    this._notify('Zen Mode', mode !== 'off');
   }
 
   changeZenOpacity(newValue: number): void {
     this.settings.zenOpacity = newValue;
     this.zenMode.setOpacity(newValue);
-    this.saveData(this.settings);
+    this._save();
   }
 
   // ---- Focus Mode ----
@@ -731,11 +560,16 @@ export default class TypographicFlowPlugin extends Plugin {
       document.body.classList.add('plugin-tf-focus');
     }
     this.dispatchFocusExtensions(mode);
-    this.saveData(this.settings);
+    this._save();
   }
 
   changeFocusOpacity(v: number): void {
-    this._applySetting('focusOpacity', v, '--focus-opacity', 'focusMode' as keyof PluginSettings);
+    this._applySetting(
+      'focusOpacity',
+      v,
+      '--focus-opacity',
+      'focusMode' as keyof PluginSettings,
+    );
   }
 
   // ---- Breathing Cursor ----
@@ -751,15 +585,26 @@ export default class TypographicFlowPlugin extends Plugin {
     } else {
       this.breathe.disable();
     }
-    this.saveData(this.settings);
+    this._save();
   }
 
   changeBreatheDuration(v: number): void {
-    this._applySetting('breatheDuration', v, '--tf-breathe-duration', 'breatheEnabled', 's');
+    this._applySetting(
+      'breatheDuration',
+      v,
+      '--tf-breathe-duration',
+      'breatheEnabled',
+      's',
+    );
   }
 
   changeBreatheMinOpacity(v: number): void {
-    this._applySetting('breatheMinOpacity', v, '--tf-breathe-min-opacity', 'breatheEnabled');
+    this._applySetting(
+      'breatheMinOpacity',
+      v,
+      '--tf-breathe-min-opacity',
+      'breatheEnabled',
+    );
   }
 
   // ---- Strikethrough Animation ----
@@ -770,13 +615,13 @@ export default class TypographicFlowPlugin extends Plugin {
     this._notify('Strikethrough Animation', newValue);
     newValue ? this.strike.enable() : this.strike.disable();
     this.strike.setDuration(this.settings.strikeAnimDuration);
-    this.saveData(this.settings);
+    this._save();
   }
 
   changeStrikeAnimDuration(v: number): void {
     this.settings.strikeAnimDuration = v;
     if (this.settings.strikeAnimEnabled) this.strike.setDuration(v);
-    this.saveData(this.settings);
+    this._save();
   }
 
   // ---- Fullscreen Mode ----
@@ -795,21 +640,21 @@ export default class TypographicFlowPlugin extends Plugin {
     } else {
       this.fullscreen.disable();
     }
-    this.saveData(this.settings);
+    this._save();
   }
 
   toggleFullscreenHeader(newValue: boolean | null = null): void {
     if (newValue === null) newValue = !this.settings.fullscreenShowHeader;
     this.settings.fullscreenShowHeader = newValue;
     this.fullscreen.setShowHeader(newValue);
-    this.saveData(this.settings);
+    this._save();
   }
 
   toggleFullscreenStatusBar(newValue: boolean | null = null): void {
     if (newValue === null) newValue = !this.settings.fullscreenShowStatusBar;
     this.settings.fullscreenShowStatusBar = newValue;
     this.fullscreen.setShowStatusBar(newValue);
-    this.saveData(this.settings);
+    this._save();
   }
 
   toggleFullscreenVignette(newValue: boolean | null = null): void {
@@ -820,7 +665,7 @@ export default class TypographicFlowPlugin extends Plugin {
     } else {
       this.fullscreen.setVignetteStyle('none');
     }
-    this.saveData(this.settings);
+    this._save();
   }
 
   changeFullscreenVignetteStyle(v: VignetteStyle): void {
@@ -828,7 +673,7 @@ export default class TypographicFlowPlugin extends Plugin {
     if (this.settings.fullscreenShowVignette) {
       this.fullscreen.setVignetteStyle(v);
     }
-    this.saveData(this.settings);
+    this._save();
   }
 
   // ---- Cursor Restore ----
@@ -838,16 +683,15 @@ export default class TypographicFlowPlugin extends Plugin {
     this.settings.cursorRestoreEnabled = newValue;
     this._notify('Cursor Restore', newValue);
     if (newValue) {
-      this.cursorRestore.enable(
-        this.settings.cursorPositions,
-        () => this.saveData(this.settings),
+      this.cursorRestore.enable(this.settings.cursorPositions, () =>
+        this._save(),
       );
       setCursorRestoreForViewPlugin(this.cursorRestore);
     } else {
       this.cursorRestore.disable();
       setCursorRestoreForViewPlugin(null);
     }
-    this.saveData(this.settings);
+    this._save();
   }
 
   // ---- Generic Setting Setter ----
@@ -866,7 +710,7 @@ export default class TypographicFlowPlugin extends Plugin {
         console.warn(
           `[TypographicFlow] Invalid CSS value for ${String(key)}: ${value}`,
         );
-        this.saveData(this.settings);
+        this._save();
         return;
       }
       const formatted =
@@ -877,7 +721,7 @@ export default class TypographicFlowPlugin extends Plugin {
             : String(value);
       setBodyCSS(cssVar, formatted);
     }
-    this.saveData(this.settings);
+    this._save();
   }
 
   // ============================================================
@@ -889,7 +733,7 @@ export default class TypographicFlowPlugin extends Plugin {
     this.settings.colorsEnabled = newValue;
     this._notify('Reading Colors', newValue);
     newValue ? this.enableColors() : this.disableColors();
-    this.saveData(this.settings);
+    this._save();
   }
 
   private enableColors(): void {
@@ -921,7 +765,12 @@ export default class TypographicFlowPlugin extends Plugin {
   }
 
   changeColorsAccentSat(v: number): void {
-    this._applySetting('colorsAccentSat', v, '--accent-sat-adjust', 'colorsEnabled');
+    this._applySetting(
+      'colorsAccentSat',
+      v,
+      '--accent-sat-adjust',
+      'colorsEnabled',
+    );
   }
 
   changeColorsBgWarmth(v: number): void {
@@ -929,7 +778,12 @@ export default class TypographicFlowPlugin extends Plugin {
   }
 
   changeColorsTextContrast(v: number): void {
-    this._applySetting('colorsTextContrast', v, '--text-contrast', 'colorsEnabled');
+    this._applySetting(
+      'colorsTextContrast',
+      v,
+      '--text-contrast',
+      'colorsEnabled',
+    );
   }
 
   // ============================================================
@@ -941,7 +795,7 @@ export default class TypographicFlowPlugin extends Plugin {
     this.settings.gridEnabled = newValue;
     this._notify('Baseline Grid', newValue);
     newValue ? this.enableGrid() : this.disableGrid();
-    this.saveData(this.settings);
+    this._save();
   }
 
   toggleGridLines(newValue: boolean | null = null): void {
@@ -952,7 +806,7 @@ export default class TypographicFlowPlugin extends Plugin {
     } else {
       document.body.classList.remove('plugin-tf-grid-visible');
     }
-    this.saveData(this.settings);
+    this._save();
   }
 
   private enableGrid(showLines = this.settings.gridShowLines): void {
@@ -961,6 +815,10 @@ export default class TypographicFlowPlugin extends Plugin {
       document.body.classList.add('plugin-tf-grid-visible');
     }
     this.applyGridSettings();
+    // Auto-calibrate when grid is toggled on with auto mode enabled
+    if (this.settings.gridAutoCalibrate) {
+      this._debouncedCalibrate();
+    }
   }
 
   private disableGrid(): void {
@@ -979,8 +837,14 @@ export default class TypographicFlowPlugin extends Plugin {
   private applyGridSettings(): void {
     setBodyCSS('--grid-unit', String(this.settings.gridUnit) + 'px');
     setBodyCSS('--grid-offset-y', String(this.settings.gridOffsetY) + 'px');
-    setBodyCSS('--grid-line-opacity-light', String(this.settings.gridLineOpacityLight));
-    setBodyCSS('--grid-line-opacity-dark', String(this.settings.gridLineOpacityDark));
+    setBodyCSS(
+      '--grid-line-opacity-light',
+      String(this.settings.gridLineOpacityLight),
+    );
+    setBodyCSS(
+      '--grid-line-opacity-dark',
+      String(this.settings.gridLineOpacityDark),
+    );
     setBodyCSS('--grid-radius-coef', String(this.settings.gridRadiusCoef));
   }
 
@@ -989,19 +853,150 @@ export default class TypographicFlowPlugin extends Plugin {
   }
 
   changeGridOffsetY(v: number): void {
-    this._applySetting('gridOffsetY', v, '--grid-offset-y', 'gridEnabled', 'px');
+    this._applySetting(
+      'gridOffsetY',
+      v,
+      '--grid-offset-y',
+      'gridEnabled',
+      'px',
+    );
   }
 
   changeGridLineOpacityLight(v: number): void {
-    this._applySetting('gridLineOpacityLight', v, '--grid-line-opacity-light', 'gridEnabled');
+    this._applySetting(
+      'gridLineOpacityLight',
+      v,
+      '--grid-line-opacity-light',
+      'gridEnabled',
+    );
   }
 
   changeGridLineOpacityDark(v: number): void {
-    this._applySetting('gridLineOpacityDark', v, '--grid-line-opacity-dark', 'gridEnabled');
+    this._applySetting(
+      'gridLineOpacityDark',
+      v,
+      '--grid-line-opacity-dark',
+      'gridEnabled',
+    );
   }
 
   changeGridRadiusCoef(v: number): void {
-    this._applySetting('gridRadiusCoef', v, '--grid-radius-coef', 'gridEnabled');
+    this._applySetting(
+      'gridRadiusCoef',
+      v,
+      '--grid-radius-coef',
+      'gridEnabled',
+    );
+  }
+
+  // ── Variable Font Weight ──
+
+  changeFontWeight(v: number): void {
+    this.settings.fontWeight = v;
+    setBodyCSS('--user-wght', String(v));
+    this._save();
+  }
+
+  // ── Mindful Font Weight (Flow State) ──
+
+  toggleFlowState(newValue: boolean | null = null): void {
+    if (newValue === null) newValue = !this.settings.flowEnabled;
+    this.settings.flowEnabled = newValue;
+    this._notify('Mindful Font Weight', newValue);
+    if (newValue) {
+      this.flowState.enable();
+      this.flowState.setSensitivity(this.settings.flowSensitivity);
+      this.flowState.setWeightRange(this.settings.flowWeightRange);
+      setFlowStateForViewPlugin(this.flowState);
+    } else {
+      this.flowState.disable();
+      setFlowStateForViewPlugin(null);
+    }
+    this._save();
+  }
+
+  changeFlowSensitivity(v: number): void {
+    this.settings.flowSensitivity = v;
+    this.flowState.setSensitivity(v);
+    this._save();
+  }
+
+  changeFlowWeightRange(v: number): void {
+    this.settings.flowWeightRange = v;
+    this.flowState.setWeightRange(v);
+    this._save();
+  }
+
+  // ── Grid Auto-Calibration ──
+
+  private _calibrateTimer: number = 0;
+
+  private _debouncedCalibrate(): void {
+    window.clearTimeout(this._calibrateTimer);
+    this._calibrateTimer = window.setTimeout(() => {
+      this._autoCalibrateGrid();
+    }, 500);
+  }
+
+  private _measureNaturalLineHeight(): number | null {
+    const leaf = this.app.workspace.activeLeaf;
+    if (!leaf?.view || leaf.view.getViewType() !== 'markdown') return null;
+    const view = leaf.view as MarkdownView;
+    const cm = getCmView(view);
+    if (!cm) return null;
+
+    const computed = window.getComputedStyle(cm.dom);
+
+    // Create a hidden probe that inherits the editor's font but lives outside
+    // the .plugin-tf-grid scope, so it is NOT affected by the grid's
+    // line-height: !important override.
+    const probe = document.createElement('span');
+    probe.textContent = 'AaAg中文字体';
+    probe.style.fontFamily = computed.fontFamily;
+    probe.style.fontSize = computed.fontSize;
+    probe.style.fontWeight = computed.fontWeight;
+    probe.style.letterSpacing = computed.letterSpacing;
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.whiteSpace = 'nowrap';
+    probe.style.lineHeight = 'normal';
+    document.body.appendChild(probe);
+
+    const height = probe.offsetHeight;
+    probe.remove();
+    return height > 0 ? height : null;
+  }
+
+  private _autoCalibrateGrid(): void {
+    if (!this.settings.gridAutoCalibrate || !this.settings.gridEnabled) return;
+
+    const naturalLH = this._measureNaturalLineHeight();
+    if (!naturalLH || naturalLH <= 0) return;
+
+    // gridUnit = naturalLH / 3 (because lh-normal = gridUnit * 3)
+    let gridUnit = Math.round(naturalLH / 3);
+
+    // Snap to even values for clean pixel alignment
+    gridUnit = Math.round(gridUnit / 2) * 2;
+
+    // Clamp to valid range
+    gridUnit = Math.max(10, Math.min(20, gridUnit));
+
+    // Apply via existing CSS variable path
+    this.settings.gridUnit = gridUnit;
+    setBodyCSS('--grid-unit', gridUnit + 'px');
+    this._save();
+
+    // Force typewriter engine to re-read typography constants
+    this.dispatchToEditors(buildTypewriterExtensions(this.settings));
+  }
+
+  changeGridAutoCalibrate(v: boolean): void {
+    this.settings.gridAutoCalibrate = v;
+    if (v && this.settings.gridEnabled) {
+      this._autoCalibrateGrid();
+    }
+    this._save();
   }
 
   // ============================================================
@@ -1013,7 +1008,7 @@ export default class TypographicFlowPlugin extends Plugin {
     this.settings.cjkProseEnabled = newValue;
     this._notify('CJK Prose', newValue);
     newValue ? this.enableCjkProse() : this.disableCjkProse();
-    this.saveData(this.settings);
+    this._save();
   }
 
   private enableCjkProse(): void {
@@ -1038,7 +1033,7 @@ export default class TypographicFlowPlugin extends Plugin {
     this._notify('CJK Justify', newValue);
     if (newValue && !this.settings.cjkProseEnabled) this.toggleCjkProse(true);
     newValue ? this.enableCjkJustify() : this.disableCjkJustify();
-    this.saveData(this.settings);
+    this._save();
   }
 
   private enableCjkJustify(): void {
@@ -1055,7 +1050,7 @@ export default class TypographicFlowPlugin extends Plugin {
     this._notify('CJK First-line Indent', newValue);
     if (newValue && !this.settings.cjkProseEnabled) this.toggleCjkProse(true);
     newValue ? this.enableCjkIndent() : this.disableCjkIndent();
-    this.saveData(this.settings);
+    this._save();
   }
 
   private enableCjkIndent(): void {
@@ -1065,469 +1060,4 @@ export default class TypographicFlowPlugin extends Plugin {
   private disableCjkIndent(): void {
     document.body.classList.remove('plugin-tf-cjk-indent');
   }
-}
-
-// ── Settings Tab ──
-
-interface SettingRowBase {
-  section: string;
-  name: string;
-  desc: string;
-  key: string;
-  method: string;
-}
-
-interface ToggleRow extends SettingRowBase {
-  type: 'toggle';
-}
-
-interface SliderRow extends SettingRowBase {
-  type: 'slider';
-  min: number;
-  max: number;
-  step: number;
-  toSlider?: (v: number) => number;
-  fromSlider?: (v: number) => number;
-}
-
-interface DropdownRow extends SettingRowBase {
-  type: 'dropdown';
-  options: Record<string, string>;
-}
-
-type SettingRow = ToggleRow | SliderRow | DropdownRow;
-
-class TypographicFlowSettingTab extends PluginSettingTab {
-  plugin: TypographicFlowPlugin;
-
-  constructor(app: App, plugin: TypographicFlowPlugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-
-    // Reset to defaults button
-    new Setting(containerEl)
-      .setName('Reset to defaults')
-      .setDesc('Restore all settings to their original values')
-      .addButton((btn) =>
-        btn.setButtonText('Reset').setWarning().onClick(async () => {
-          await this.plugin.resetToDefaults();
-          this.display();
-          new Notice('Settings reset to defaults');
-        }),
-      );
-
-    let lastSection: string | null = null;
-    for (const s of TypographicFlowSettingTab._table) {
-      if (s.section !== lastSection) {
-        containerEl.createEl('h2', { text: s.section });
-        lastSection = s.section;
-      }
-
-      const setting = new Setting(containerEl)
-        .setName(s.name)
-        .setDesc(s.desc);
-
-      const settingsRecord = this.plugin.settings as unknown as Record<string, unknown>;
-      const pluginRecord = this.plugin as unknown as Record<string, (...args: unknown[]) => void>;
-      const val = () => settingsRecord[s.key];
-      const call = (v: unknown) => {
-        if (typeof pluginRecord[s.method] !== 'function') {
-          console.error(`[TypographicFlow] Settings method not found: ${s.method}`);
-          return;
-        }
-        pluginRecord[s.method](v);
-      };
-
-      if (s.type === 'toggle') {
-        setting.addToggle((t) => t.setValue(val() as boolean).onChange(call as (v: boolean) => void));
-      } else if (s.type === 'slider') {
-        setting.addSlider((sl) => {
-          sl.setLimits(s.min, s.max, s.step);
-          const display = s.toSlider ? s.toSlider(val() as number) : (val() as number);
-          sl.setValue(display);
-          sl.onChange((v) => call(s.fromSlider ? s.fromSlider(v) : v));
-        });
-      } else if (s.type === 'dropdown') {
-        setting.addDropdown((dd) => {
-          for (const [k, v] of Object.entries(s.options))
-            dd.addOption(k, v);
-          dd.setValue(val() as string);
-          dd.onChange(call as (v: string) => void);
-        });
-      }
-    }
-  }
-
-  private static _table: SettingRow[] = [
-    // ── Typewriter Scroll ──
-    {
-      section: 'Typewriter Scroll / 打字机滚动',
-      name: 'Toggle Typewriter Scrolling',
-      desc: 'Enable or disable typewriter scrolling',
-      key: 'enabled',
-      type: 'toggle',
-      method: 'toggleTypewriterScroll',
-    },
-    {
-      section: 'Typewriter Scroll / 打字机滚动',
-      name: 'Center offset / 居中偏移',
-      desc: 'Cursor position as % of screen height (50 = center)',
-      key: 'typewriterOffset',
-      type: 'slider',
-      min: 0,
-      max: 100,
-      step: 5,
-      toSlider: (v) => v * 100,
-      fromSlider: (v) => v / 100,
-      method: 'changeTypewriterOffset',
-    },
-    {
-      section: 'Typewriter Scroll / 打字机滚动',
-      name: 'Dead Zone / 死区',
-      desc: 'Lines to move before re-centering (prevents jitter)',
-      key: 'deadZone',
-      type: 'slider',
-      min: 0,
-      max: 10,
-      step: 1,
-      method: 'changeDeadZone',
-    },
-    {
-      section: 'Typewriter Scroll / 打字机滚动',
-      name: 'Scroll Suspension / 滚动暂停',
-      desc: 'Pause auto-center on manual scroll, resume on typing',
-      key: 'suspensionEnabled',
-      type: 'toggle',
-      method: 'toggleSuspension',
-    },
-    {
-      section: 'Typewriter Scroll / 打字机滚动',
-      name: 'Smooth Scroll / 平滑滚动',
-      desc: 'Animate scroll to cursor position',
-      key: 'smoothScrollEnabled',
-      type: 'toggle',
-      method: 'toggleSmoothScroll',
-    },
-    {
-      section: 'Typewriter Scroll / 打字机滚动',
-      name: 'Smart Offset / 智能偏移',
-      desc: 'Adjust position for headings and empty lines',
-      key: 'smartOffsetEnabled',
-      type: 'toggle',
-      method: 'toggleSmartOffset',
-    },
-
-    // ── Focus & Zen ──
-    {
-      section: 'Focus & Zen / 专注模式',
-      name: 'Zen Mode / 禅模式',
-      desc: 'Dim non-active lines while typing',
-      key: 'zenEnabled',
-      type: 'toggle',
-      method: 'toggleZen',
-    },
-    {
-      section: 'Focus & Zen / 专注模式',
-      name: 'Zen Opacity / 禅模式透明度',
-      desc: 'Brightness of dimmed lines (lower = darker)',
-      key: 'zenOpacity',
-      type: 'slider',
-      min: 0,
-      max: 100,
-      step: 5,
-      toSlider: (v) => v * 100,
-      fromSlider: (v) => v / 100,
-      method: 'changeZenOpacity',
-    },
-    {
-      section: 'Focus & Zen / 专注模式',
-      name: 'Focus Mode / 聚焦模式',
-      desc: 'Dim lines outside current range',
-      key: 'focusMode',
-      type: 'dropdown',
-      options: {
-        off: 'Off',
-        line: 'Single Line',
-        paragraph: 'Current Paragraph',
-        heading: 'Current Heading',
-        sentence: 'Sentence (experimental)',
-      },
-      method: 'changeFocusMode',
-    },
-    {
-      section: 'Focus & Zen / 专注模式',
-      name: 'Focus Dimming / 聚焦虚化',
-      desc: 'Opacity of dimmed lines outside focus range (lower = darker)',
-      key: 'focusOpacity',
-      type: 'slider',
-      min: 0,
-      max: 100,
-      step: 5,
-      toSlider: (v) => v * 100,
-      fromSlider: (v) => v / 100,
-      method: 'changeFocusOpacity',
-    },
-
-    // ── Cursor & Animation ──
-    {
-      section: 'Cursor & Animation / 光标与动画',
-      name: 'Enable Breathing Cursor / 呼吸光标',
-      desc: 'Smooth fade cycle instead of binary blink',
-      key: 'breatheEnabled',
-      type: 'toggle',
-      method: 'toggleBreathe',
-    },
-    {
-      section: 'Cursor & Animation / 光标与动画',
-      name: 'Breath Duration / 呼吸周期',
-      desc: 'Speed of one breath cycle (seconds)',
-      key: 'breatheDuration',
-      type: 'slider',
-      min: 2,
-      max: 8,
-      step: 0.5,
-      method: 'changeBreatheDuration',
-    },
-    {
-      section: 'Cursor & Animation / 光标与动画',
-      name: 'Minimum Opacity / 最低透明度',
-      desc: 'Lowest brightness in breath cycle',
-      key: 'breatheMinOpacity',
-      type: 'slider',
-      min: 0.1,
-      max: 0.8,
-      step: 0.05,
-      method: 'changeBreatheMinOpacity',
-    },
-    {
-      section: 'Cursor & Animation / 光标与动画',
-      name: 'Enable Strikethrough Animation / 删除线动画',
-      desc: 'Animate ~~strikethrough~~ from left to right',
-      key: 'strikeAnimEnabled',
-      type: 'toggle',
-      method: 'toggleStrikeAnim',
-    },
-    {
-      section: 'Cursor & Animation / 光标与动画',
-      name: 'Reveal Duration / 动画时长',
-      desc: 'Speed of strikethrough animation (seconds)',
-      key: 'strikeAnimDuration',
-      type: 'slider',
-      min: 0.1,
-      max: 0.8,
-      step: 0.05,
-      method: 'changeStrikeAnimDuration',
-    },
-    {
-      section: 'Cursor & Animation / 光标与动画',
-      name: 'Restore Cursor Position / 恢复光标位置',
-      desc: 'Remember cursor and scroll position when reopening files',
-      key: 'cursorRestoreEnabled',
-      type: 'toggle',
-      method: 'toggleCursorRestore',
-    },
-
-    // ── Typography ──
-    {
-      section: 'Typography / 排版',
-      name: 'Enable Baseline Grid / 基线网格',
-      desc: 'Align text to a vertical grid for consistent spacing',
-      key: 'gridEnabled',
-      type: 'toggle',
-      method: 'toggleGrid',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Show Grid Lines / 显示网格线',
-      desc: 'Show grid lines (layout stays active when off)',
-      key: 'gridShowLines',
-      type: 'toggle',
-      method: 'toggleGridLines',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Grid Unit / 网格模数',
-      desc: 'Base unit for grid spacing (px)',
-      key: 'gridUnit',
-      type: 'slider',
-      min: 10,
-      max: 20,
-      step: 1,
-      method: 'changeGridUnit',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Y-axis Offset / Y轴偏移',
-      desc: 'Vertical offset of grid lines (px)',
-      key: 'gridOffsetY',
-      type: 'slider',
-      min: 20,
-      max: 40,
-      step: 1,
-      method: 'changeGridOffsetY',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Grid Line Opacity (Light) / 浅色模式透明度',
-      desc: 'Grid line brightness in light mode',
-      key: 'gridLineOpacityLight',
-      type: 'slider',
-      min: 0,
-      max: 0.15,
-      step: 0.005,
-      method: 'changeGridLineOpacityLight',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Grid Line Opacity (Dark) / 深色模式透明度',
-      desc: 'Grid line brightness in dark mode',
-      key: 'gridLineOpacityDark',
-      type: 'slider',
-      min: 0,
-      max: 0.15,
-      step: 0.005,
-      method: 'changeGridLineOpacityDark',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Corner Radius Coefficient / 圆角系数',
-      desc: 'Roundness of corners (0 = sharp)',
-      key: 'gridRadiusCoef',
-      type: 'slider',
-      min: 0,
-      max: 1,
-      step: 0.05,
-      method: 'changeGridRadiusCoef',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Enable CJK Prose / 中文排版',
-      desc: 'CJK typography: half-width punctuation + margin trim',
-      key: 'cjkProseEnabled',
-      type: 'toggle',
-      method: 'toggleCjkProse',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'Justify Text / 两端对齐',
-      desc: 'Justify text ⚠ May cause uneven spacing. Not compatible with long inline math ($...$)',
-      key: 'cjkProseJustify',
-      type: 'toggle',
-      method: 'toggleCjkJustify',
-    },
-    {
-      section: 'Typography / 排版',
-      name: 'First-line Indent / 首行缩进',
-      desc: 'Indent first line ⚠ Reading View only',
-      key: 'cjkProseIndent',
-      type: 'toggle',
-      method: 'toggleCjkIndent',
-    },
-
-    // ── Colors ──
-    {
-      section: 'Colors / 配色',
-      name: 'Enable Reading Colors / 阅读配色',
-      desc: 'Apply zen reading color palette',
-      key: 'colorsEnabled',
-      type: 'toggle',
-      method: 'toggleColors',
-    },
-    {
-      section: 'Colors / 配色',
-      name: 'Accent Hue Shift / 强调色色相',
-      desc: 'Shift accent color (0 = green, + = warm, − = cool)',
-      key: 'colorsAccentHue',
-      type: 'slider',
-      min: -30,
-      max: 30,
-      step: 1,
-      method: 'changeColorsAccentHue',
-    },
-    {
-      section: 'Colors / 配色',
-      name: 'Accent Saturation / 强调色饱和度',
-      desc: 'Accent color intensity',
-      key: 'colorsAccentSat',
-      type: 'slider',
-      min: -30,
-      max: 30,
-      step: 1,
-      method: 'changeColorsAccentSat',
-    },
-    {
-      section: 'Colors / 配色',
-      name: 'Background Warmth / 背景暖度',
-      desc: 'Background tone (0 = neutral)',
-      key: 'colorsBgWarmth',
-      type: 'slider',
-      min: -10,
-      max: 10,
-      step: 1,
-      method: 'changeColorsBgWarmth',
-    },
-    {
-      section: 'Colors / 配色',
-      name: 'Text Contrast / 文字对比度',
-      desc: 'Text darkness/brightness',
-      key: 'colorsTextContrast',
-      type: 'slider',
-      min: -15,
-      max: 15,
-      step: 1,
-      method: 'changeColorsTextContrast',
-    },
-
-    // ── Fullscreen ──
-    {
-      section: 'Fullscreen / 全屏模式',
-      name: 'Enable Fullscreen Mode / 启用全屏模式',
-      desc: 'Hide all UI elements for distraction-free writing',
-      key: 'fullscreenEnabled',
-      type: 'toggle',
-      method: 'toggleFullscreen',
-    },
-    {
-      section: 'Fullscreen / 全屏模式',
-      name: 'Show Header / 显示标题栏',
-      desc: 'Show title bar in fullscreen mode',
-      key: 'fullscreenShowHeader',
-      type: 'toggle',
-      method: 'toggleFullscreenHeader',
-    },
-    {
-      section: 'Fullscreen / 全屏模式',
-      name: 'Show Status Bar / 显示状态栏',
-      desc: 'Show status bar in fullscreen mode',
-      key: 'fullscreenShowStatusBar',
-      type: 'toggle',
-      method: 'toggleFullscreenStatusBar',
-    },
-    {
-      section: 'Fullscreen / 全屏模式',
-      name: 'Vignette Effect / 暗角效果',
-      desc: 'Dark edges effect in fullscreen mode',
-      key: 'fullscreenShowVignette',
-      type: 'toggle',
-      method: 'toggleFullscreenVignette',
-    },
-    {
-      section: 'Fullscreen / 全屏模式',
-      name: 'Vignette Style / 暗角样式',
-      desc: 'Style of the vignette overlay',
-      key: 'fullscreenVignetteStyle',
-      type: 'dropdown',
-      options: {
-        radial: 'Radial (default)',
-        box: 'Box shadow',
-        none: 'None',
-      },
-      method: 'changeFullscreenVignetteStyle',
-    },
-  ];
 }

@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### Dynamic Zen Mode (Velocity-Driven Fading)
+- Zen Mode upgraded from boolean toggle to three-state dropdown: Off / Static / Dynamic
+- Dynamic mode: non-active line opacity responds to typing speed (WPM) in real time
+- Fast typing → deep dim (0.1 opacity), idle >3s → gentle fade back (0.3 opacity)
+- First-order low-pass filter smooths the WPM signal for natural transitions
+- 0.3s CSS transition for dynamic mode, 0.8s for static mode
+- `changeZenMode()` replaces `toggleZen()`; old `zenEnabled` boolean auto-migrated
+
+#### Grid Auto-Calibration
+- New "Auto Calibrate" toggle in Typography section
+- Measures the theme's natural font line-height via a hidden probe element
+- Auto-computes optimal `--grid-unit` value (snap to even, clamp 10-20)
+- Triggers on plugin init and theme change (`css-change` event), 500ms debounce
+- Grid Unit slider becomes read-only when auto-calibrate is active
+
+#### NLP Sentence Focus Filter
+- Sentence mode now detects unclosed markdown syntax in sentence boundaries
+- Skips sentence splitting when text contains unclosed `$...$`, `[[...]]`, `**...**`, etc.
+- Prevents visual breakage of inline math, wikilinks, bold, and footnotes
+
+### Changed
+- Zen mode command (Ctrl+P) now cycles: Off → Static → Dynamic → Off
+- Status bar indicator uses `zenMode !== 'off'` instead of old `zenEnabled`
+
+### Fixed
+- `VelocityZenEngine` now properly destroyed on plugin unload (memory leak fix)
+- `zenMode` field validated in settings loader
+- `versions.json` updated with v1.3.0 compatibility entry
+
 ## [1.3.0] - 2026-06-17
 
 ### Added

@@ -9,10 +9,11 @@
  * Five Facets expose runtime configuration to the plugins.
  */
 
-import { Facet, Transaction } from '@codemirror/state';
-import { EditorView, ViewPlugin } from '@codemirror/view';
+import {Facet, Transaction} from '@codemirror/state';
+import {EditorView, ViewPlugin} from '@codemirror/view';
 
-import { getCursorRestoreForViewPlugin } from './cursor-restore';
+import {getCursorRestoreForViewPlugin} from './cursor-restore';
+import {getFlowStateManager} from './flow-state';
 
 // ── Recovery timeout for scroll suspension (ms) ──
 const SUSPEND_RECOVERY_MS = 3000;
@@ -20,7 +21,8 @@ const SUSPEND_RECOVERY_MS = 3000;
 // ── Facets ──
 
 export const typewriterOffset = Facet.define<number, number>({
-  combine: (values) => (values.length ? values.reduce((a, b) => Math.min(a, b), Infinity) : 0.5),
+  combine: (values) =>
+    values.length ? values.reduce((a, b) => Math.min(a, b), Infinity) : 0.5,
 });
 
 export const deadZoneFacet = Facet.define<number, number>({
@@ -49,25 +51,29 @@ interface TypographyConstants {
   gridUnit: number;
 }
 
-const _typoCache = new WeakMap<Element, { styles: TypographyConstants; cssText: string }>();
-let _typoCacheTime = 0;
-const TYPO_CACHE_TTL = 1000; // ms — CSS variables only change on grid toggle (re-creates plugins)
+const _typoCache = new WeakMap<
+  Element,
+  {styles: TypographyConstants; cssText: string; lastChecked: number}
+>();
+const TYPO_CACHE_TTL = 1000;
 
 function getTypographyConstants(view: EditorView): TypographyConstants {
   const dom = view.scrollDOM;
   const now = performance.now();
 
-  // TTL fast path: skip getComputedStyle entirely within the TTL window
   const cached = _typoCache.get(dom);
-  if (cached && (now - _typoCacheTime) < TYPO_CACHE_TTL) return cached.styles;
+  if (cached && now - cached.lastChecked < TYPO_CACHE_TTL) return cached.styles;
 
   // Fingerprint path: check if CSS variables actually changed
   const computed = window.getComputedStyle(dom);
-  const fp = computed.getPropertyValue('--tf-lh-normal') + '|' +
-             computed.getPropertyValue('--tf-lh-heading') + '|' +
-             computed.getPropertyValue('--tf-grid-unit');
+  const fp =
+    computed.getPropertyValue('--tf-lh-normal') +
+    '|' +
+    computed.getPropertyValue('--tf-lh-heading') +
+    '|' +
+    computed.getPropertyValue('--tf-grid-unit');
   if (cached && cached.cssText === fp) {
-    _typoCacheTime = now;
+    cached.lastChecked = now;
     return cached.styles;
   }
 
@@ -82,8 +88,7 @@ function getTypographyConstants(view: EditorView): TypographyConstants {
       parseInt(computed.getPropertyValue('--tf-grid-unit')),
     ),
   };
-  _typoCache.set(dom, { styles, cssText: fp });
-  _typoCacheTime = now;
+  _typoCache.set(dom, {styles, cssText: fp, lastChecked: now});
   return styles;
 }
 
@@ -115,6 +120,10 @@ function computeEffectiveOffset(
       return domHeight * baseOffset * 0.9 - typo.lhNormal / 2;
     }
   } catch (_e) {
+    console.warn(
+      '[TypographicFlow] Typewriter computeOffset failed (pos out of range)',
+      _e,
+    );
     // pos out of range — fall through
   }
 
@@ -138,6 +147,9 @@ class TypewriterScrollPaddingPlugin {
         update.view.scrollDOM.scrollTop,
       );
     }
+
+    // Update flow state (mindful font weight)
+    getFlowStateManager()?.onUpdate(update);
 
     // Ignore pure pointer selections (click-to-place-cursor)
     const userEvents = update.transactions
@@ -335,8 +347,11 @@ class TypewriterScrollPlugin {
       self.myUpdate = true;
 
       try {
-        const effect = EditorView.scrollIntoView(head, { y: 'start', yMargin: offset });
-        view.dispatch({ effects: [effect] });
+        const effect = EditorView.scrollIntoView(head, {
+          y: 'start',
+          yMargin: offset,
+        });
+        view.dispatch({effects: [effect]});
       } finally {
         // No-op: scrollend or fallback timer below handles cleanup.
         // If dispatch threw, isScrolling stays true briefly, which is harmless.
@@ -382,11 +397,13 @@ class TypewriterScrollPlugin {
 
 // ── ViewPlugin instances ──
 
-export const typewriterScrollPaddingPlugin =
-  ViewPlugin.fromClass(TypewriterScrollPaddingPlugin);
+export const typewriterScrollPaddingPlugin = ViewPlugin.fromClass(
+  TypewriterScrollPaddingPlugin,
+);
 
-export const typewriterScrollPlugin =
-  ViewPlugin.fromClass(TypewriterScrollPlugin);
+export const typewriterScrollPlugin = ViewPlugin.fromClass(
+  TypewriterScrollPlugin,
+);
 
 // ── Extension builder ──
 

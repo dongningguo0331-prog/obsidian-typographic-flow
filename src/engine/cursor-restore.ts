@@ -8,8 +8,8 @@
  * - Cursor restore: triggered from file-open event AND ViewPlugin on-load
  */
 
-import type { App, MarkdownView, TFile } from 'obsidian';
-import type { EditorView } from '@codemirror/view';
+import type {App, MarkdownView, TFile} from 'obsidian';
+import type {EditorView} from '@codemirror/view';
 
 export interface CursorState {
   from: number;
@@ -34,13 +34,16 @@ export class CursorRestoreManager {
     this._enabled = true;
     this._positions = positions;
     this._saveData = saveData;
+    // NOTE: workspace.on/off access internal Obsidian event API; guarded by cleanupFns
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ws = this.app.workspace as any;
 
     // Get active file path helper
     this._activeFile = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (this.app.workspace as any).getActiveFile()?.path as string | undefined;
+      return (this.app.workspace as any).getActiveFile()?.path as
+        | string
+        | undefined;
     };
 
     // file-open: restore cursor position
@@ -51,7 +54,8 @@ export class CursorRestoreManager {
     this._cleanupFns.push(() => ws.off('file-open', onFileOpen));
 
     // rename: update path key
-    const onRename = (file: TFile, oldPath: string) => this.onRename(file, oldPath);
+    const onRename = (file: TFile, oldPath: string) =>
+      this.onRename(file, oldPath);
     ws.on('rename', onRename);
     this._cleanupFns.push(() => ws.off('rename', onRename));
 
@@ -78,11 +82,15 @@ export class CursorRestoreManager {
   // ── Public API (called from CodeMirror ViewPlugin) ──
 
   /** Called from ViewPlugin.update() — saves cursor position in-memory. */
-  saveCursor(selection: { from: number; to: number }, scrollTop: number): void {
+  saveCursor(selection: {from: number; to: number}, scrollTop: number): void {
     if (!this._enabled || !this._activeFile) return;
     const path = this._activeFile();
     if (!path) return;
-    this._positions[path] = { from: selection.from, to: selection.to, scroll: scrollTop };
+    this._positions[path] = {
+      from: selection.from,
+      to: selection.to,
+      scroll: scrollTop,
+    };
   }
 
   /** Called from ViewPlugin constructor — restores cursor position on editor load. */
@@ -100,7 +108,7 @@ export class CursorRestoreManager {
       const docLen = view.state.doc.length;
       const from = Math.min(state.from, docLen);
       const to = Math.min(state.to, docLen);
-      view.dispatch({ selection: { anchor: from, head: to } });
+      view.dispatch({selection: {anchor: from, head: to}});
       requestAnimationFrame(() => {
         view.scrollDOM.scrollTop = state.scroll;
       });
@@ -119,7 +127,9 @@ export class CursorRestoreManager {
 
     window.requestAnimationFrame(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const leaves = (this.app.workspace as any).getLeavesOfType('markdown') as { view: MarkdownView }[];
+      const leaves = (this.app.workspace as any).getLeavesOfType(
+        'markdown',
+      ) as {view: MarkdownView}[];
       for (const leaf of leaves) {
         const view = leaf.view;
         if (!view?.file || view.file.path !== file.path) continue;
@@ -130,7 +140,7 @@ export class CursorRestoreManager {
         const docLen = cm.state.doc.length;
         const from = Math.min(state.from, docLen);
         const to = Math.min(state.to, docLen);
-        cm.dispatch({ selection: { anchor: from, head: to } });
+        cm.dispatch({selection: {anchor: from, head: to}});
 
         requestAnimationFrame(() => {
           cm.scrollDOM.scrollTop = state.scroll;
@@ -169,7 +179,9 @@ export class CursorRestoreManager {
 
 let _cursorRestoreInstance: CursorRestoreManager | null = null;
 
-export function setCursorRestoreForViewPlugin(instance: CursorRestoreManager | null): void {
+export function setCursorRestoreForViewPlugin(
+  instance: CursorRestoreManager | null,
+): void {
   _cursorRestoreInstance = instance;
 }
 
