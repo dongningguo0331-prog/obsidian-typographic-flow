@@ -24,8 +24,7 @@ class TypingSpeedTracker {
     if (this.timestamps.length < 2) return 0;
 
     const elapsed =
-      (this.timestamps[this.timestamps.length - 1] - this.timestamps[0]) /
-      1000;
+      (this.timestamps[this.timestamps.length - 1] - this.timestamps[0]) / 1000;
     if (elapsed < 0.1) return 0;
 
     // WPM = (chars / 5) / (time in minutes) = count * 60 / 5 / elapsed
