@@ -25,9 +25,11 @@ export const Facet = {
   }),
 };
 
-export const Compartment = vi.fn(() => ({
-  of: vi.fn((exts: unknown) => exts),
-}));
+export class Compartment {
+  of = vi.fn((exts: unknown) => exts);
+
+  reconfigure = vi.fn((exts: unknown) => ({is: 'reconfigure', exts}));
+}
 
 export const RangeSet = {
   empty: { size: 0 },
