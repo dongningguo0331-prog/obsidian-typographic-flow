@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-18
+
 ### Added
 
 #### Dynamic Zen Mode (Velocity-Driven Fading)
@@ -29,14 +31,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skips sentence splitting when text contains unclosed `$...$`, `[[...]]`, `**...**`, etc.
 - Prevents visual breakage of inline math, wikilinks, bold, and footnotes
 
+#### Missing Command Registration
+- Register `Toggle Baseline Grid Lines` command (was documented in README but never registered)
+
 ### Changed
 - Zen mode command (Ctrl+P) now cycles: Off → Static → Dynamic → Off
 - Status bar indicator uses `zenMode !== 'off'` instead of old `zenEnabled`
+- **Internal architecture**: split `main.ts` orchestration into 10 self-contained feature modules under `src/modules/`
+- Settings tab now consumes typed setting rows from modules instead of stringly-typed method names
+- Status bar prefix fixed from garbled character to `⚙`
 
 ### Fixed
 - `VelocityZenEngine` now properly destroyed on plugin unload (memory leak fix)
 - `zenMode` field validated in settings loader
 - `versions.json` updated with v1.3.0 compatibility entry
+- Module lifecycle is now idempotent, fixing accumulated `layout-change`/`css-change` listeners on reset-to-defaults
+- Typewriter scroll extensions no longer resurrect on `layout-change` after being disabled
+- Grid auto-calibration no longer re-activates typewriter scroll when it is disabled
+- `resetToDefaults()` now fully tears down all modules (velocityZen, focus compartment, cursor positions)
+- `changeGridAutoCalibrate` now immediately registers/unregisters the `css-change` listener
 
 ## [1.3.0] - 2026-06-17
 

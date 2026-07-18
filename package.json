@@ -1,6 +1,6 @@
 {
   "name": "obsidian-typographic-flow",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Typewriter scrolling, zen/focus modes, reading colors, and baseline grid — a unified typographic editing experience.",
   "main": "main.js",
   "scripts": {
